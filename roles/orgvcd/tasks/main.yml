@@ -1,0 +1,272 @@
+# ===========================================================
+# CREACIÓN DE ORG VDC - CloudAPI + PowerCLI
+# ===========================================================
+
+# ===========================================================
+# EXTRAER PREFIJO DEL ORG VDC
+# ===========================================================
+- name: Extraer prefijo del Org VDC
+  ansible.builtin.set_fact:
+    locationPrefix: "{{ vcd.orgVdcName.split('-')[0] }}"
+  delegate_to: localhost
+  connection: local
+
+# ===========================================================
+# VALIDAR ORGANIZACIÓN EXISTENTE
+# ===========================================================
+- name: Obtener ID de la organización
+  ansible.builtin.uri:
+    url: "{{ vcd.host }}/cloudapi/1.0.0/orgs?filter=name=={{ vcd.orgFullName }}"
+    method: GET
+    headers:
+      Accept: "application/json;version={{ vcd.api_version }}"
+      Authorization: "Bearer {{ vcd.access_token }}"
+    return_content: yes
+    validate_certs: false
+  register: org_check
+  delegate_to: localhost
+  connection: local
+
+- name: Extraer ID de la organización
+  ansible.builtin.set_fact:
+    org_id: "{{ org_check.json['values'][0]['id'] if (org_check.json['values'] | length > 0) else '' }}"
+  delegate_to: localhost
+  connection: local
+
+- name: Validar existencia de la organización
+  ansible.builtin.fail:
+    msg: "❌ La organización '{{ vcd.orgFullName }}' no existe. Debe ser creada previamente."
+  when: org_id == ''
+  delegate_to: localhost
+  connection: local
+
+# ===========================================================
+# RESOLVER COMPONENTES NECESARIOS
+# ===========================================================
+- name: Obtener todos los Provider VDCs
+  ansible.builtin.uri:
+    url: "{{ vcd.host }}/cloudapi/1.0.0/providerVdcs"
+    method: GET
+    headers:
+      Accept: "application/json;version={{ vcd.api_version }}"
+      Authorization: "Bearer {{ vcd.access_token }}"
+    return_content: yes
+    validate_certs: false
+  register: provider_check
+  delegate_to: localhost
+  connection: local
+
+- name: Buscar Provider VDC por prefijo regional
+  ansible.builtin.set_fact:
+    provider_match: >-
+      {{
+        (
+          provider_check.json['values']
+          | selectattr('name', 'search', '^' ~ locationPrefix)
+          | list
+        )[0]
+        if (
+          provider_check.json['values']
+          | selectattr('name', 'search', '^' ~ locationPrefix)
+          | list
+        ) | length > 0 else {}
+      }}
+  when: provider_check.json['values'] is defined and (provider_check.json['values'] | length > 0)
+  delegate_to: localhost
+  connection: local
+
+- name: Validar Provider VDC encontrado
+  ansible.builtin.fail:
+    msg: "❌ No se encontró ningún Provider VDC que comience con '{{ locationPrefix }}'."
+  when: provider_match is not defined
+  delegate_to: localhost
+  connection: local
+
+# ===========================================================
+# NETWORK POOL asociado al NSX Manager del Provider
+# ===========================================================
+- name: Obtener todos los Network Pools
+  ansible.builtin.uri:
+    url: "{{ vcd.host }}/cloudapi/1.0.0/networkPools/networkPoolSummaries"
+    method: GET
+    headers:
+      Accept: "application/json;version={{ vcd.api_version }}"
+      Authorization: "Bearer {{ vcd.access_token }}"
+    return_content: yes
+    validate_certs: false
+  register: network_check
+  delegate_to: localhost
+  connection: local
+
+- name: Buscar Network Pool por prefijo regional
+  ansible.builtin.set_fact:
+    network_match: >-
+      {{
+        (
+          network_check.json['values']
+          | selectattr('name', 'search', '^' ~ locationPrefix)
+          | list
+        )[0]
+        if (
+          network_check.json['values']
+          | selectattr('name', 'search', '^' ~ locationPrefix)
+          | list
+        ) | length > 0 else {}
+      }}
+  when: network_check.json['values'] | length > 0
+  delegate_to: localhost
+  connection: local
+
+- name: Validar Network Pool encontrado
+  ansible.builtin.fail:
+    msg: >-
+      ❌ No se encontró ningún Network Pool asociado al NSX Manager
+      '{{ provider_match.nsxTManager.name }}' con prefijo '{{ locationPrefix }}'.
+  when: network_match == {}
+
+# ===========================================================
+# STORAGE PROFILE asociado al Provider VDC
+# ===========================================================
+- name: Obtener todos los Storage Profiles (Policies)
+  ansible.builtin.uri:
+    url: "{{ vcd.host }}/cloudapi/1.0.0/pvdcStoragePolicies"
+    method: GET
+    headers:
+      Accept: "application/json;version={{ vcd.api_version }}"
+      Authorization: "Bearer {{ vcd.access_token }}"
+    return_content: yes
+    validate_certs: false
+  register: storage_check
+  delegate_to: localhost
+  connection: local
+
+- name: Buscar Storage Policy por Provider VDC
+  ansible.builtin.set_fact:
+    storage_match: >-
+      {{
+        storage_check.json['values']
+        | selectattr('providerVdcRef.name', 'equalto', provider_match.name)
+        | list
+        | first
+      }}
+  when: storage_check.json['values'] | length > 0
+  delegate_to: localhost
+  connection: local
+
+- name: Validar Storage Profile encontrado
+  ansible.builtin.fail:
+    msg: "❌ No se encontró Storage Policy asociada al Provider '{{ provider_match.name }}'."
+  when: storage_match is not defined
+  delegate_to: localhost
+  connection: local
+
+# ===========================================================
+# MOSTRAR RESULTADOS DE COMPONENTES DETECTADOS
+# ===========================================================
+- name: Mostrar nombres de componentes detectados
+  ansible.builtin.debug:
+    msg:
+      - "✅ Provider VDC: {{ provider_match.name }}"
+      - "✅ Network Pool: {{ network_match.name }}"
+      - "✅ Storage Profile: {{ storage_match.name }}"
+  delegate_to: localhost
+  connection: local
+
+# ===========================================================
+# VALIDAR EXISTENCIA DEL ORG VDC
+# ===========================================================
+- name: Verificar si el Org VDC ya existe por nombre
+  ansible.builtin.uri:
+    url: "{{ vcd.host }}/cloudapi/1.0.0/vdcs?filter=name=={{ vcd.orgVdcName }}"
+    method: GET
+    headers:
+      Accept: "application/json;version={{ vcd.api_version }}"
+      Authorization: "Bearer {{ vcd.access_token }}"
+    return_content: yes
+    validate_certs: false
+  register: vdc_check
+  delegate_to: localhost
+  connection: local
+
+- name: Determinar si el Org VDC ya existe
+  ansible.builtin.set_fact:
+    vdc_exists: "{{ vdc_check.json.values | length > 0 }}"
+  delegate_to: localhost
+  connection: local
+
+# ===========================================================
+# CALCULAR MODELO DE ASIGNACIÓN SEGÚN "TRIAL"
+# ===========================================================
+- name: Determinar modelo de asignación
+  ansible.builtin.set_fact:
+    allocation_model: >-
+      {% if vcd.trial | bool %}
+      PayAsYouGo
+      {% else %}
+      AllocationPool
+      {% endif %}
+  delegate_to: localhost
+  connection: local
+
+- name: Mostrar modelo de asignación seleccionado
+  ansible.builtin.debug:
+    msg: "⚙️ Modo de asignación seleccionado: {{ allocation_model }}"
+  delegate_to: localhost
+  connection: local
+
+# ===========================================================
+# MOSTRAR VARIABLES DE ENTRADA ANTES DE PowerCLI
+# ===========================================================
+- name: Mostrar variables antes de ejecutar PowerCLI
+  ansible.builtin.debug:
+    msg:
+      - "📡 Servidor VCD: {{ vcd.host }}"
+      - "👤 Usuario: {{ vcd.user }}"
+      - "🏢 Organización: {{ vcd.orgFullName }}"
+      - "🏗️  Org VDC: {{ vcd.orgVdcName }}"
+      - "🌍 Provider VDC: {{ provider_match.name | default('No definido') }}"
+      - "💾 Storage Policy: {{ storage_match.name | default('No definido') }}"
+      - "🌐 Network Pool: {{ network_match.name | default('No definido') }}"
+      - "🧠 CPU Allocation: {{ vcd.cpuQuota }}"
+      - "💽 Memory Allocation: {{ vcd.memoryQuota }}"
+      - "📦 Storage Allocation: {{ vcd.storageQuota }}"
+      - "📝 Descripción: Organización {{ vcd.orgFullName }} - creado por AWX"
+  delegate_to: localhost
+  connection: local
+
+# ===========================================================
+# 4️⃣ Ejecutar script PowerCLI remoto con log
+# ===========================================================
+- name: Ejecutar script PowerCLI remoto con log
+  ansible.builtin.win_shell: |
+    Write-Host "=== Iniciando ejecución PowerCLI ==="
+    Write-Host "Servidor: {{ vcd.host }}"
+    Write-Host "Usuario: {{ vcd.user }}"
+    Write-Host "OrgName: {{ vcd.orgFullName }}"
+    Write-Host "Script: C:\Users\jeferson.diaz\Documents\WindowsPowerShell\Scripts\orgvcd.ps1"
+
+    powershell.exe -ExecutionPolicy Bypass -File "C:\Users\jeferson.diaz\Documents\WindowsPowerShell\Scripts\orgvcd.ps1" `
+      -Server "{{ vcd.host }}" `
+      -Username "{{ vcd.user }}" `
+      -Password "{{ vcd.password }}" `
+      -OrgName "{{ vcd.orgFullName }}" `
+      -VdcName "{{ vcd.orgVdcName }}" `
+      -ProvName "{{ provider_match.name }}" `
+      -SpName "{{ storage_match.name }}" `
+      -NpName "{{ network_match.name }}" `
+      -CpuAllocation {{ vcd.cpuQuota }} `
+      -MemoryAllocation {{ vcd.memoryQuota }} `
+      -StorageAllocation {{ vcd.storageQuota }} `
+      -Description "Organización {{ vcd.orgFullName }} - creado por AWX"
+  register: script_result
+  delegate_to: win-builder
+
+# ===========================================================
+# MOSTRAR RESULTADO DE EJECUCIÓN
+# ===========================================================
+- name: Mostrar resultado del script PowerCLI
+  ansible.builtin.debug:
+    msg:
+      - "✅ Ejecución completada en PowerCLI"
+      - "📜 Salida:"
+      - "{{ script_result.stdout_lines }}"

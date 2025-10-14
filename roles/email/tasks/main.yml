@@ -1,0 +1,10 @@
+---
+- name: Send onboarding email
+  ansible.builtin.mail:
+    host: "{{ smtp_server }}"
+    port: "{{ smtp_port }}"
+    username: "{{ smtp_user }}"
+    password: "{{ smtp_password }}"
+    to: "{{ email_to }}"
+    subject: "Onboarding Completed"
+    body: "The onboarding process for {{ org_name }} has been completed successfully."

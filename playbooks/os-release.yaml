@@ -1,0 +1,19 @@
+---
+- name: Consultar OS Release en Linux
+  hosts: all
+  gather_facts: no
+  tasks:
+    - name: Validar existencia de /etc/os-release
+      ansible.builtin.stat:
+        path: /etc/os-release
+      register: os_file
+
+    - name: Leer contenido de /etc/os-release si existe
+      ansible.builtin.shell: cat /etc/os-release
+      when: os_file.stat.exists
+      register: os_release_output
+
+    - name: Mostrar resultado del OS Release
+      ansible.builtin.debug:
+        var: os_release_output.stdout
+      when: os_file.stat.exists

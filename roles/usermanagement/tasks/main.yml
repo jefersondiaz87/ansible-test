@@ -1,0 +1,48 @@
+---
+# ====================================
+# CREAR USUARIO EN vIDM
+# ====================================
+- name: Crear usuario en vIDM
+  ansible.builtin.uri:
+    url: "{{ vidm_url }}/users"
+    method: POST
+    user: "{{ vidm_admin }}"
+    password: "{{ vidm_password }}"
+    body_format: json
+    headers:
+      Content-Type: "application/json"
+      Accept: "application/json"
+    body:
+      userName: "{{ new_user }}"
+      active: true
+      emails:
+        - value: "{{ new_user_email }}"
+          primary: true
+      name:
+        givenName: "{{ new_user_first }}"
+        familyName: "{{ new_user_last }}"
+    status_code: [200, 201]
+    validate_certs: false
+    force_basic_auth: yes
+    return_content: yes
+  register: create_user_response
+  delegate_to: localhost
+
+- name: Mostrar resultado de creación
+  ansible.builtin.debug:
+    msg: "Usuario creado correctamente en vIDM: {{ create_user_response.json.id | default('ID no recibido') }}"
+
+# ====================================
+# ELIMINAR USUARIO EN vIDM (opcional)
+# ====================================
+- name: Eliminar usuario en vIDM (si existe)
+  ansible.builtin.uri:
+    url: "{{ vidm_url }}/users/{{ user_id }}"
+    method: DELETE
+    user: "{{ vidm_admin }}"
+    password: "{{ vidm_password }}"
+    status_code: [200, 204, 404]  # 404 para evitar fallo si no existe
+    validate_certs: false
+    force_basic_auth: yes
+  delegate_to: localhost
+  when: user_id is defined

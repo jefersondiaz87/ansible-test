@@ -1,0 +1,93 @@
+---
+- name: VMware Cloud Director Onboarding - AWX Orchestration
+  hosts: localhost
+  connection: local
+  gather_facts: no
+
+  vars:
+    # ⚙️ Variables de conexión al VCD — inyectadas desde credenciales de AWX
+    vcd_hostname: "{{ lookup('env', 'VCD_HOST') }}"
+    vcd_org: "{{ lookup('env', 'VCD_ORG') }}"
+    vcd_user: "{{ lookup('env', 'VCD_USER') }}"
+    vcd_password: "{{ lookup('env', 'VCD_PASSWORD') }}"
+    vcd_verify_ssl_certs: "{{ lookup('env', 'VCD_VERIFY_SSL_CERTS') | default(false) }}"
+    vcd_api_version: "{{ lookup('env', 'VCD_API_VERSION') | default('39.1') }}"
+    vcd_apikey: "{{ lookup('env', 'VCD_TOKEN') }}"
+    vcd_metadata: "{{ lookup('env', 'VCD_METADATA_JSON') | from_json }}" # Asegúrate de tener este valor en credenciales
+
+    # 📦 Datos dinámicos — enviados desde survey o extra_vars
+    orgFullName: "{{ orgFullName }}"
+    orgVdcName: "{{ orgVdcName }}"
+    cpuQuota: "{{ cpuQuota }}"
+    memoryQuota: "{{ memoryQuota }}"
+    storageQuota: "{{ storageQuota }}"
+    mail: "{{ mail }}"
+    firstName: "{{ firstName }}"
+    lastName: "{{ lastName }}"
+    networkType: "{{ networkType }}"
+    trial: "{{ trial | default(false) }}"
+    vmQuota: "2"
+
+  tasks:
+    # =======================================
+    # Autenticación directa a VCD (sin pyvcloud)
+    # =======================================
+    - name: Obtener token OAuth desde VCD
+      ansible.builtin.uri:
+        url: "{{ vcd_hostname }}/cloudapi/1.0.0/sessions/provider"
+        method: POST
+        headers:
+          Accept: "application/*+json;version={{ vcd_api_version }},application/json;version={{ vcd_api_version }}"
+          Authorization: "Basic {{ (vcd_user + '@' + vcd_org + ':' + vcd_password) | b64encode }}"
+        return_content: yes
+        validate_certs: false
+      register: vcd_auth_response
+
+    - name: Guardar token JWT
+      ansible.builtin.set_fact:
+        vcd_access_token: "{{ vcd_auth_response.x_vmware_vcloud_access_token }}"
+
+    - name: Mostrar token temporal (debug)
+      ansible.builtin.debug:
+        msg: "Token JWT generado: {{ vcd_access_token | default('NO DEFINIDO') }}"
+
+    - name: Validar autenticación exitosa
+      ansible.builtin.debug:
+        msg: "✅ Token obtenido correctamente para VCD: {{ vcd_access_token[:20] }}..."
+    - name: Consolidar contexto VCD para roles
+      ansible.builtin.set_fact:
+        vcd_context:
+          host: "{{ vcd_hostname }}"
+          org: "{{ vcd_org }}"
+          user: "{{ vcd_user }}"
+          password: "{{ vcd_password }}"
+          verify_ssl: "{{ vcd_verify_ssl_certs }}"
+          api_version: "{{ vcd_api_version }}"
+          apikey: "{{ vcd_apikey }}"
+          access_token: "{{ vcd_access_token }}"
+          orgFullName: "{{ orgFullName }}"
+          orgVdcName: "{{ orgVdcName }}"
+          cpuQuota: "{{ cpuQuota }}"
+          memoryQuota: "{{ memoryQuota }}"
+          storageQuota: "{{ storageQuota }}"
+          mail: "{{ mail }}"
+          firstName: "{{ firstName }}"
+          lastName: "{{ lastName }}"
+          networkType: "{{ networkType }}"
+          trial: "{{ trial | default(false) }}"
+          cleanup: "{{ cleanup | default(false) }}"
+          vmQuota: "{{ vmQuota }}"
+          metadata: "{{vcd_metadata}}"
+
+    # =======================================
+    # Ejecución de roles (ya con token disponible)
+    # =======================================
+    - name: Ejecutar roles de onboarding
+      include_role:
+        name: "{{ item }}"
+      vars:
+        vcd: "{{ vcd_context }}"
+      loop:
+        #- organization
+        - orgvcd
+        #- network

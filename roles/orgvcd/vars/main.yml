@@ -1,0 +1,15 @@
+---
+vCpuInMhz: 1000
+networkQuota: 10
+isThinProvision: true
+usesFastProvisioning: true
+allocationModel: "ReservationPool"
+storageProfile: "Standard"
+providerVdc: "ProviderVDC-Default"
+networkPool: "Default-NetworkPool"
+#ansible_host: 10.10.201.250
+#ansible_user: 'clarocloud\jeferson.diaz' # usuario Windows con permisos WinRM
+#ansible_password: "Triara.2025.."
+#ansible_connection: winrm
+#ansible_winrm_transport: basic
+#ansible_winrm_server_cert_validation: ignore

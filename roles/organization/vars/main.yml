@@ -1,0 +1,6 @@
+---
+vcd_hostname: "vcd.example.com"
+vcd_username: "admin"
+vcd_password: "secret"
+org_name: "OrgDemo"
+org_full_name: "Organization Demo"

@@ -1,0 +1,96 @@
+---
+- name: Onboarding Tenant con CloudBlue y vCloud Director
+  hosts: localhost
+  connection: local
+  gather_facts: no
+
+  vars:
+    # --- CloudBlue API ---
+    cloudblue_host: "https://cloudblue.miempresa.com"
+    cloudblue_user: "apiuser"
+    cloudblue_pass: "SuperSecret"
+
+    # --- vCloud Director ---
+    vcd_org: "System" # Org admin (System)
+    vcd_user: "admin" # Usuario admin vCD
+    vcd_password: "SuperSecret" # Password admin vCD
+    vcd_verify_ssl_certs: false
+    provider_vdc_name: "ProviderVDC"
+    network_pool_name: "default-pool"
+    storage_profile: "default"
+    vmQuota: "2"
+
+  tasks:
+    # Paso 1: Crear Tenant en CloudBlue
+    - name: Crear Tenant en CloudBlue
+      uri:
+        url: "{{ cloudblue_host }}/aps/2/resources/tenants"
+        method: POST
+        user: "{{ cloudblue_user }}"
+        password: "{{ cloudblue_pass }}"
+        force_basic_auth: yes
+        headers:
+          Content-Type: "application/json"
+        body_format: json
+        body:
+          orgFullName: "{{ orgFullName }}"
+          orgVdcName: "{{ orgVdcName }}"
+          cpuQuota: "{{ cpuQuota }}"
+          memoryQuota: "{{ memoryQuota }}"
+          storageQuota: "{{ storageQuota }}"
+          email: "{{ email }}"
+          firstName: "{{ firstName }}"
+          lastName: "{{ lastName }}"
+          networkType: "{{ networkType }}"
+          trial: "{{ trial }}"
+        status_code: 201
+      register: cloudblue_tenant
+
+    # Paso 2: Crear Org en vCloud Director
+    - name: Crear Organización en vCD
+      community.vmware.vcd_org:
+        user: "{{ vcd_user }}"
+        password: "{{ vcd_password }}"
+        org: "{{ vcd_org }}"
+        host: "{{ vcd_host }}" # <<--- aquí está la variable que debes pasar en extra_vars
+        verify_ssl_certs: "{{ vcd_verify_ssl_certs }}"
+        name: "{{ orgFullName }}"
+        is_enabled: true
+        state: present
+
+    # Paso 3: Crear VDC en vCD
+    - name: Crear VDC en vCD
+      community.vmware.vcd_org_vdc:
+        user: "{{ vcd_user }}"
+        password: "{{ vcd_password }}"
+        org: "{{ vcd_org }}"
+        host: "{{ vcd_host }}" # <<--- también aquí
+        verify_ssl_certs: "{{ vcd_verify_ssl_certs }}"
+        target_org: "{{ orgFullName }}"
+        name: "{{ orgVdcName }}"
+        allocation_model: "AllocationPool"
+        cpu_quota: "{{ cpuQuota }}"
+        memory_quota: "{{ memoryQuota }}"
+        storage_profiles:
+          - name: "{{ storage_profile }}"
+            limit: "{{ storageQuota }}"
+        network_pool_name: "{{ network_pool_name }}"
+        provider_vdc_name: "{{ provider_vdc_name }}"
+        state: present
+
+    # Paso 4: Crear usuario admin en vCD
+    - name: Crear usuario admin del Tenant
+      community.vmware.vcd_user:
+        user: "{{ vcd_user }}"
+        password: "{{ vcd_password }}" # Auth en vCD
+        org: "{{ vcd_org }}"
+        host: "{{ vcd_host }}"
+        verify_ssl_certs: "{{ vcd_verify_ssl_certs }}"
+        target_org: "{{ orgFullName }}"
+        name: "{{ firstName }}{{ lastName }}"
+        role_name: "Organization Administrator"
+        user_password: "{{ tenant_user_password }}" # Password del nuevo usuario
+        full_name: "{{ firstName }} {{ lastName }}"
+        email: "{{ email }}"
+        enabled: true
+        state: present

@@ -1,0 +1,246 @@
+# ===========================================================
+# CREACIÓN DE EDGE GATEWAY (CloudAPI 1.0.0)
+# ===========================================================
+
+# -----------------------------------------------------------
+# Construir el nombre del Edge Gateway igual que en vRO
+# -----------------------------------------------------------
+- name: Construir nombre del Edge Gateway
+  ansible.builtin.set_fact:
+    locationPrefix: "{{ vcd.orgVdcName.split('-')[0] }}"
+    edgeGatewayName: "{{ vcd.orgVdcName.split('-')[0] }}-{{ vcd.orgFullName }}-{{ vcd.networkType }}"
+    externalNetworkName: "{{ vcd.orgVdcName.split('-')[0] }}-{{ vcd.networkType }}-01"
+  delegate_to: localhost
+
+- name: Mostrar nombre calculado del Edge Gateway
+  ansible.builtin.debug:
+    msg:
+      - "📍 locationPrefix: {{ locationPrefix }}"
+      - "📡 Edge Gateway generado: {{ edgeGatewayName }}"
+      - "🌐 External Network esperada: {{ externalNetworkName }}"
+
+# ===========================================================
+# VALIDAR SI EL EDGE GATEWAY YA EXISTE
+# ===========================================================
+- name: Validar si el Edge Gateway ya existe (CloudAPI)
+  ansible.builtin.uri:
+    url: "{{ vcd.host }}/cloudapi/1.0.0/edgeGateways?filter=name=={{ edgeGatewayName }}"
+    method: GET
+    headers:
+      Accept: "application/json;version={{ vcd.api_version }}"
+      Authorization: "Bearer {{ vcd.access_token }}"
+    validate_certs: "{{ vcd.verify_ssl }}"
+  register: edge_check
+  failed_when: edge_check.status not in [200]
+
+- name: Determinar si el Edge Gateway ya existe
+  ansible.builtin.set_fact:
+    edge_exists: "{{ ('values' in edge_check.json) and (edge_check.json['values'] | length > 0) }}"
+
+- name: Mostrar estado del Edge Gateway
+  ansible.builtin.debug:
+    msg:
+      - "💡 Edge Gateway buscado: {{ edgeGatewayName }}"
+      - "📋 Resultado: {{ (edge_check.json['values'] | length) if ('values' in edge_check.json) else 0 }}"
+      - "🔍 Estado: {{ 'YA EXISTE ✅' if edge_exists else 'NO EXISTE 🚀 Se procederá a crear' }}"
+
+# ===========================================================
+# OBTENER ID DE LA RED EXTERNA
+# ===========================================================
+- name: Buscar red externa por nombre
+  ansible.builtin.uri:
+    url: "{{ vcd.host }}/cloudapi/1.0.0/externalNetworks?filter=name=={{ externalNetworkName }}"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ vcd.access_token }}"
+      Accept: "application/json;version={{ vcd.api_version }}"
+    validate_certs: "{{ vcd.verify_ssl }}"
+  register: ext_net_lookup
+  failed_when: ext_net_lookup.status not in [200]
+
+- name: Validar red externa
+  ansible.builtin.assert:
+    that:
+      - ext_net_lookup.json.resultTotal > 0
+    fail_msg: "❌ No se encontró la red externa '{{ externalNetworkName }}'."
+
+- name: Guardar datos de la red externa
+  ansible.builtin.set_fact:
+    extNetId: "{{ ext_net_lookup.json['values'][0]['id'] }}"
+    uplink_subnets: "{{ ext_net_lookup.json['values'][0]['subnets']['values'] }}"
+
+# ===========================================================
+# OBTENER ORG VDC ID
+# ===========================================================
+- name: Obtener ID del Org VDC
+  ansible.builtin.uri:
+    url: "{{ vcd.host }}/cloudapi/1.0.0/vdcs?filter=name=={{ vcd.orgVdcName }}"
+    method: GET
+    headers:
+      Accept: "application/json;version={{ vcd.api_version }}"
+      Authorization: "Bearer {{ vcd.access_token }}"
+    validate_certs: false
+  register: vdc_check
+  failed_when: vdc_check.status not in [200]
+
+- name: Guardar orgVdcId
+  ansible.builtin.set_fact:
+    org_vdc_id: "{{ vdc_check.json['values'][0]['id'] }}"
+  when: vdc_check.json['values'] | length > 0
+
+# ===========================================================
+# VALIDAR ESTADO DEL ORG VDC (Debe estar ENABLED)
+# ===========================================================
+- name: Consultar estado del Org VDC
+  ansible.builtin.uri:
+    url: "{{ vcd.host }}/cloudapi/1.0.0/vdcs/{{ org_vdc_id }}"
+    method: GET
+    headers:
+      Accept: "application/json;version={{ vcd.api_version }}"
+      Authorization: "Bearer {{ vcd.access_token }}"
+    validate_certs: "{{ vcd.verify_ssl }}"
+  register: orgvdc_status
+  failed_when: orgvdc_status.status not in [200]
+
+- name: Inspeccionar estructura devuelta del Org VDC
+  ansible.builtin.debug:
+    var: orgvdc_status.json
+
+- name: Detectar estado del Org VDC (seguro ante cambios de esquema)
+  ansible.builtin.set_fact:
+    orgvdc_state: >-
+      {{
+        orgvdc_status.json.status
+        if 'status' in orgvdc_status.json
+        else (
+          orgvdc_status.json.state
+          if 'state' in orgvdc_status.json
+          else (
+            orgvdc_status.json.get('orgVdc', {}).get('status', 'UNKNOWN')
+          )
+        )
+      }}
+
+- name: Mostrar estado actual del Org VDC
+  ansible.builtin.debug:
+    msg:
+      - "🏢 Org VDC: {{ vcd.orgVdcName }}"
+      - "🔎 Estado detectado: {{ orgvdc_state }}"
+
+- name: Validar que el Org VDC está habilitado
+  ansible.builtin.assert:
+    that:
+      - orgvdc_state == "ENABLED"
+    fail_msg: "❌ El Org VDC '{{ vcd.orgVdcName }}' no está habilitado (estado: {{ orgvdc_state }}). No se puede desplegar un Edge Gateway."
+    success_msg: "✅ El Org VDC '{{ vcd.orgVdcName }}' está habilitado y listo para desplegar Edge Gateway."
+
+
+# ===========================================================
+# MOSTRAR Y SELECCIONAR SUBNET (modo vRO)
+# ===========================================================
+- name: Mostrar subnets detectadas
+  ansible.builtin.debug:
+    msg: "{{ uplink_subnets | to_nice_json }}"
+
+- name: Tomar primera subnet de la red externa (como vRO)
+  ansible.builtin.set_fact:
+    free_uplink_subnets: "{{ [ uplink_subnets[0] | combine({'ipRanges': {'values': []}}) ] }}"
+
+- name: Mostrar subnet seleccionada para el Edge
+  ansible.builtin.debug:
+    msg:
+      - "🌐 Subnet usada: {{ free_uplink_subnets[0].gateway }} /{{ free_uplink_subnets[0].prefixLength }}"
+      - "🧹 Rango IP limpiado para asignación automática"
+
+# ===========================================================
+# CONSTRUIR PAYLOAD DEL EDGE GATEWAY (OpenAPI 1.0.0)
+# ===========================================================
+- name: Construir payload del Edge Gateway
+  ansible.builtin.set_fact:
+    edge_payload:
+      name: "{{ edgeGatewayName }}"
+      description: "Edge Gateway creado automáticamente por Ansible REST"
+      orgVdc:
+        id: "{{ org_vdc_id }}"
+      edgeGatewayUplinks:
+        - uplinkId: "{{ extNetId }}"
+          dedicated: "{{ 'false' if vcd.networkType == 'IO' else 'true' }}"
+          subnets:
+            values: "{{ free_uplink_subnets }}"
+
+- name: Validar estructura del payload antes de enviar
+  ansible.builtin.assert:
+    that:
+      - (edge_payload.edgeGatewayUplinks[0].subnets['values'] | default([])) | length > 0
+      - edge_payload.orgVdc.id is defined
+    fail_msg: "❌ El payload del Edge Gateway está incompleto o mal estructurado."
+
+# ===========================================================
+# CREAR EDGE GATEWAY
+# ===========================================================
+- name: Crear Edge Gateway vía CloudAPI
+  when: not edge_exists
+  ansible.builtin.uri:
+    url: "{{ vcd.host }}/cloudapi/1.0.0/edgeGateways"
+    method: POST
+    headers:
+      Accept: "application/json;version={{ vcd.api_version }}"
+      Authorization: "Bearer {{ vcd.access_token }}"
+      Content-Type: "application/json"
+    body_format: json
+    body: "{{ edge_payload }}"
+    validate_certs: false
+  register: edge_create
+  failed_when: edge_create.status not in [200, 201, 202]
+
+- name: Mostrar resultado de creación
+  when: not edge_exists
+  ansible.builtin.debug:
+    msg: "✅ Edge Gateway '{{ edgeGatewayName }}' creado correctamente con ID: {{ edge_create.json.id }}"
+
+# ===========================================================
+# OBTENER URN FINAL DEL EDGE
+# ===========================================================
+- name: Obtener URN del Edge Gateway creado
+  ansible.builtin.uri:
+    url: "{{ vcd.host }}/cloudapi/1.0.0/edgeGateways?filter=name=={{ edgeGatewayName }}"
+    method: GET
+    headers:
+      Accept: "application/json;version={{ vcd.api_version }}"
+      Authorization: "Bearer {{ vcd.access_token }}"
+    validate_certs: false
+  register: edge_query
+
+- name: Guardar URN del Edge
+  ansible.builtin.set_fact:
+    edge_urn: "{{ edge_query.json['values'][0]['id'] if (edge_query.json['values'] | length > 0) else '' }}"
+
+- name: Mostrar URN final del Edge Gateway
+  ansible.builtin.debug:
+    msg: "🆔 Edge Gateway creado con URN: {{ edge_urn }}"
+
+# ===========================================================
+# ASIGNAR METADATA (TrialMode)
+# ===========================================================
+- name: Asignar metadata TrialMode al Edge Gateway
+  when: edge_urn != ''
+  ansible.builtin.uri:
+    url: "{{ vcd.host }}/cloudapi/1.0.0/entities/{{ edge_urn }}/metadata"
+    method: POST
+    headers:
+      Accept: "application/json;version={{ vcd.api_version }}"
+      Authorization: "Bearer {{ vcd.access_token }}"
+      Content-Type: "application/json"
+    body_format: json
+    body:
+      key: "TrialMode"
+      value: "{{ trial | string | lower }}"
+      type: "STRING"
+    validate_certs: false
+  register: metadata_update
+  failed_when: metadata_update.status not in [200, 201, 202]
+
+- name: Confirmar metadata aplicada
+  when: edge_urn != ''
+  ansible.builtin.debug:
+    msg: "🟢 Metadata 'TrialMode={{ 'true' if trial else 'false' }}' aplicada correctamente."

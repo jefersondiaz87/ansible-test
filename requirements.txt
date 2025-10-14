@@ -1,0 +1,6 @@
+pyvmomi>=7.0.3
+pyvim>=3.0.3
+pyvcloud>=23.0.0
+requests>=2.31.0
+cryptography>=42.0.5
+lxml>=5.3.0

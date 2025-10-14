@@ -1,0 +1,6 @@
+- name: Probar conexión a Windows
+  hosts: win-builder
+  gather_facts: no
+  tasks:
+    - name: Ping WinRM
+      ansible.windows.win_ping:

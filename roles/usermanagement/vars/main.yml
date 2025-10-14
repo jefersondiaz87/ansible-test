@@ -1,0 +1,10 @@
+---
+vidm_url: "https://idm.example.com/api"
+vidm_admin: "idm-admin"
+vidm_password: "idm-pass"
+
+new_user: "jdoe"
+new_user_email: "jdoe@example.com"
+new_user_first: "John"
+new_user_last: "Doe"
+user_id: "12345"

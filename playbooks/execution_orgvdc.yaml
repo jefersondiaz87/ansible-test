@@ -1,0 +1,29 @@
+---
+- name: Crear un OrgVDC en VMware Cloud Director
+  hosts: localhost
+  connection: local
+  gather_facts: no
+
+  tasks:
+    - name: Crear VDC
+      vcd_org_vdc:
+        user: "{{ lookup('env', 'VCD_USER') }}"
+        password: "{{ lookup('env', 'VCD_PASSWORD') }}"
+        host: "{{ lookup('env', 'VCD_HOST') }}"
+        org: "system"
+        api_version: "37.1"
+        verify_ssl_certs: false
+
+        vdc_name: "DEMO-VDC01"
+        vdc_org_name: "DEMO-ORG"
+        provider_vdc_name: "PVDC-CORE"
+        network_pool_name: "VXLAN-Pool"
+        allocation_model: "AllocationPool"
+        description: "VDC creado automáticamente desde Ansible"
+        cpu_allocated: 8000
+        mem_allocated: 16384
+        is_enabled: true
+        is_thin_provision: true
+        uses_fast_provisioning: true
+
+        state: present

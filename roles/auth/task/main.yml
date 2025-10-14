@@ -1,0 +1,28 @@
+---
+# =======================================
+# Autenticación directa a VCD (sin pyvcloud)
+# =======================================
+
+- name: Obtener token OAuth desde VCD
+  ansible.builtin.uri:
+    url: "{{ vcd_hostname }}/oauth/provider/token"
+    method: POST
+    headers:
+      Content-Type: "application/x-www-form-urlencoded"
+    body: "grant_type=refresh_token&refresh_token={{ vcd_apikey }}"
+    body_format: form-urlencoded
+    return_content: yes
+    validate_certs: false
+  register: vcd_auth_response
+
+- name: Guardar token JWT
+  ansible.builtin.set_fact:
+    vcd_access_token: "{{ vcd_auth_response.json.access_token }}"
+
+- name: Mostrar token temporal (debug)
+  debug:
+    msg: "Token JWT generado: {{ vcd_access_token | default('NO DEFINIDO') }}"
+
+- name: Validar autenticación exitosa
+  ansible.builtin.debug:
+    msg: "✅ Token obtenido correctamente para VCD: {{ vcd_access_token[:20] }}..."

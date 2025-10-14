@@ -1,0 +1,31 @@
+- name: "✅ Crear organización en VMware Cloud Director (CloudAPI)"
+  ansible.builtin.uri:
+    url: "{{ vcd.host }}/cloudapi/1.0.0/orgs"
+    method: POST
+    headers:
+      Accept: "application/json;version={{ vcd.api_version }},application/*+json;version={{ vcd.api_version }}"
+      Authorization: "Bearer {{ vcd.access_token }}"
+      Content-Type: "application/json"
+    body_format: json
+    body:
+      name: "{{ vcd.orgFullName }}"
+      displayName: "{{ vcd.orgFullName }}"
+      isEnabled: true
+      description: "Organización creada automáticamente por Ansible"
+    status_code: [200, 201, 409] # 409 si ya existe
+    validate_certs: "{{ vcd.verify_ssl }}"
+  register: org_create
+  changed_when: org_create.status == 201
+  failed_when:
+    - org_create.status not in [200, 201, 409]
+
+- name: "🔍 Mostrar resultado de creación de la organización"
+  debug:
+    msg: >
+      {% if org_create.status == 201 %}
+        ✅ Organización '{{ vcd.orgFullName }}' creada correctamente.
+      {% elif org_create.status == 409 %}
+        ⚠️ La organización '{{ vcd.orgFullName }}' ya existe.
+      {% else %}
+        ❌ Error al crear la organización: {{ org_create }}
+      {% endif %}

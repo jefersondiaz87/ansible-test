@@ -1,0 +1,60 @@
+---
+- name: Probar conexión a VCD y acceso a la API moderna (cloudapi)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    # Se obtienen de las variables extra o de AWX
+    vcd_host: "{{ vcenter_hostname }}" # Ejemplo: https://vcd-lab.clarocloud.com
+    vcd_api_token: "{{ vcenter_apikey }}" # Token generado en el portal
+    api_version: "39.1"
+
+  tasks:
+    - name: 1. Intercambiar API Token por access_token (JWT)
+      ansible.builtin.uri:
+        url: "{{ vcd_host }}/oauth/provider/token"
+        method: POST
+        headers:
+          Content-Type: "application/x-www-form-urlencoded"
+        body: "grant_type=refresh_token&refresh_token={{ vcd_api_token }}"
+        body_format: form-urlencoded
+        return_content: yes
+        validate_certs: false
+        status_code: 200
+        timeout: 60
+      register: token_response
+      ignore_errors: true
+
+    - name: Manejar error de autenticación
+      ansible.builtin.fail:
+        msg: "Error al obtener access_token: {{ token_response.msg | default('Desconocido') }}"
+      when: token_response is failed
+
+    - name: 2. Capturar el access_token
+      ansible.builtin.set_fact:
+        vcd_access_token: "{{ token_response.json.access_token }}"
+
+    - name: 3. Probar conexión con token válido
+      ansible.builtin.uri:
+        url: "{{ vcd_host }}/cloudapi/1.0.0/testConnection"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ vcd_access_token }}"
+          Accept: "application/json;version={{ api_version }}"
+          Content-Type: "application/json"
+        body: |
+          {
+            "host": "{{ vcd_host | regex_replace('https://', '') }}",
+            "port": 443
+          }
+        body_format: json
+        return_content: yes
+        validate_certs: false
+        status_code: 200
+        timeout: 60
+      register: test_response
+
+    - name: 4. Mostrar resultado de conexión
+      ansible.builtin.debug:
+        msg: "Conexión exitosa. Respuesta: {{ test_response.json }}"
