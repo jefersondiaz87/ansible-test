@@ -234,7 +234,7 @@
 - name: Ejecutar PowerCLI en Windows
   ansible.builtin.win_shell: |
     Write-Host "=== Iniciando ejecucion PowerCLI ==="
-    Write-Host "Servidor: {{ vcd.host }}"
+    Write-Host "Servidor: {{ hostvcd }}"
     Write-Host "Usuario: {{ vcd.user }}"
     Write-Host "OrgName: {{ vcd.orgFullName }}"
     Write-Host "Script: D:\Users\Jeferson Diaz\Documents\g6\Ansible\orgvcd.ps1"
@@ -253,7 +253,7 @@
       -StorageAllocation {{ vcd.storageQuota }} `
       -Description "Organización {{ vcd.orgFullName }} - creado por AWX"
   vars:
-    host: "{{vcd.host}}"
+    hostvcd: "{{vcd.host}}"
     ansible_connection: winrm
     ansible_host: "100.66.2.151"
     ansible_port: 5985
