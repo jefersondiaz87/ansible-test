@@ -261,6 +261,7 @@
   vars:
     ansible_connection: winrm
     ansible_host: "100.66.2.151"
+    ansible_port: 5985
     ansible_user: "jeferson diaz"
     ansible_password: "Zero.eg9olj12*"
     ansible_winrm_transport: basic
