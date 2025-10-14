@@ -59,18 +59,13 @@
 - name: Buscar Provider VDC por prefijo regional
   ansible.builtin.set_fact:
     provider_match: >-
-      {{
-        (
+      {%
+        set p = (
           provider_check.json['values']
           | selectattr('name', 'search', '^' ~ locationPrefix)
           | list
-        )[0]
-        if (
-          provider_check.json['values']
-          | selectattr('name', 'search', '^' ~ locationPrefix)
-          | list
-        ) | length > 0 else {}
-      }}
+        )
+      %}{{ {'name': p[0].name, 'id': p[0].id} if p | length > 0 else {} }}
   when: provider_check.json['values'] is defined and (provider_check.json['values'] | length > 0)
   delegate_to: localhost
   connection: local
@@ -78,7 +73,7 @@
 - name: Validar Provider VDC encontrado
   ansible.builtin.fail:
     msg: "❌ No se encontró ningún Provider VDC que comience con '{{ locationPrefix }}'."
-  when: provider_match is not defined
+  when: provider_match == {}
   delegate_to: localhost
   connection: local
 
@@ -101,18 +96,13 @@
 - name: Buscar Network Pool por prefijo regional
   ansible.builtin.set_fact:
     network_match: >-
-      {{
-        (
+      {%
+        set n = (
           network_check.json['values']
           | selectattr('name', 'search', '^' ~ locationPrefix)
           | list
-        )[0]
-        if (
-          network_check.json['values']
-          | selectattr('name', 'search', '^' ~ locationPrefix)
-          | list
-        ) | length > 0 else {}
-      }}
+        )
+      %}{{ {'name': n[0].name, 'id': n[0].id} if n | length > 0 else {} }}
   when: network_check.json['values'] | length > 0
   delegate_to: localhost
   connection: local
@@ -120,9 +110,10 @@
 - name: Validar Network Pool encontrado
   ansible.builtin.fail:
     msg: >-
-      ❌ No se encontró ningún Network Pool asociado al NSX Manager
-      '{{ provider_match.nsxTManager.name }}' con prefijo '{{ locationPrefix }}'.
+      ❌ No se encontró ningún Network Pool con prefijo '{{ locationPrefix }}'.
   when: network_match == {}
+  delegate_to: localhost
+  connection: local
 
 # ===========================================================
 # STORAGE PROFILE asociado al Provider VDC
@@ -143,12 +134,15 @@
 - name: Buscar Storage Policy por Provider VDC
   ansible.builtin.set_fact:
     storage_match: >-
-      {{
-        storage_check.json['values']
-        | selectattr('providerVdcRef.name', 'equalto', provider_match.name)
-        | list
-        | first
-      }}
+      {%
+        set s = (
+          storage_check.json['values']
+          | selectattr('providerVdcRef.name', 'equalto', provider_match.name)
+          | selectattr('isEnabled', 'equalto', true)
+          | selectattr('totalCapacityMb', '>', 0)
+          | list
+        )
+      %}{{ {'name': s[0].name, 'id': s[0].id} if s | length > 0 else {} }}
   when: storage_check.json['values'] | length > 0
   delegate_to: localhost
   connection: local
@@ -156,19 +150,19 @@
 - name: Validar Storage Profile encontrado
   ansible.builtin.fail:
     msg: "❌ No se encontró Storage Policy asociada al Provider '{{ provider_match.name }}'."
-  when: storage_match is not defined
+  when: storage_match == {}
   delegate_to: localhost
   connection: local
 
 # ===========================================================
 # MOSTRAR RESULTADOS DE COMPONENTES DETECTADOS
 # ===========================================================
-- name: Mostrar nombres de componentes detectados
+- name: Mostrar componentes detectados
   ansible.builtin.debug:
     msg:
-      - "✅ Provider VDC: {{ provider_match.name }}"
-      - "✅ Network Pool: {{ network_match.name }}"
-      - "✅ Storage Profile: {{ storage_match.name }}"
+      - "✅ Provider VDC: {{ provider_match.name }} ({{ provider_match.id }})"
+      - "✅ Network Pool: {{ network_match.name }} ({{ network_match.id }})"
+      - "✅ Storage Profile: {{ storage_match.name }} ({{ storage_match.id }})"
   delegate_to: localhost
   connection: local
 
@@ -224,9 +218,9 @@
       - "👤 Usuario: {{ vcd.user }}"
       - "🏢 Organización: {{ vcd.orgFullName }}"
       - "🏗️  Org VDC: {{ vcd.orgVdcName }}"
-      - "🌍 Provider VDC: {{ provider_match.name | default('No definido') }}"
-      - "💾 Storage Policy: {{ storage_match.name | default('No definido') }}"
-      - "🌐 Network Pool: {{ network_match.name | default('No definido') }}"
+      - "🌍 Provider VDC: {{ provider_match.id | default('No definido') }}"
+      - "💾 Storage Policy: {{ storage_match.id | default('No definido') }}"
+      - "🌐 Network Pool: {{ network_match.id | default('No definido') }}"
       - "🧠 CPU Allocation: {{ vcd.cpuQuota }}"
       - "💽 Memory Allocation: {{ vcd.memoryQuota }}"
       - "📦 Storage Allocation: {{ vcd.storageQuota }}"
@@ -251,9 +245,9 @@
       -Password "{{ vcd.password }}" `
       -OrgName "{{ vcd.orgFullName }}" `
       -VdcName "{{ vcd.orgVdcName }}" `
-      -ProvName "{{ provider_match.name }}" `
-      -SpName "{{ storage_match.name }}" `
-      -NpName "{{ network_match.name }}" `
+      -ProvName "{{ provider_match.id }}" `
+      -SpName "{{ storage_match.id }}" `
+      -NpName "{{ network_match.id }}" `
       -CpuAllocation {{ vcd.cpuQuota }} `
       -MemoryAllocation {{ vcd.memoryQuota }} `
       -StorageAllocation {{ vcd.storageQuota }} `
