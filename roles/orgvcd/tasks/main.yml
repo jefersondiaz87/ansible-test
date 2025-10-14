@@ -247,8 +247,8 @@
     Write-Host "Servidor: {{ vcd.host }}"
     Write-Host "Usuario: {{ vcd.user }}"
     Write-Host "OrgName: {{ vcd.orgFullName }}"
-    Write-Host "Script: C:\Users\jeferson.diaz\Documents\WindowsPowerShell\Scripts\orgvcd.ps1"
-
+    Write-Host "Script: D:\Users\Jeferson Diaz\Documents\g6\Ansible\orgvcd.ps1"
+  delegate_to: win-builder
     powershell.exe -ExecutionPolicy Bypass -File "D:\Users\Jeferson Diaz\Documents\g6\Ansible\orgvcd.ps1" `
       -Server "{{ vcd.host }}" `
       -Username "{{ vcd.user }}" `
@@ -263,7 +263,7 @@
       -StorageAllocation {{ vcd.storageQuota }} `
       -Description "Organización {{ vcd.orgFullName }} - creado por AWX"
   register: script_result
-  delegate_to: win-builder
+  
 
 # ===========================================================
 # MOSTRAR RESULTADO DE EJECUCIÓN
