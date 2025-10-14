@@ -88,6 +88,6 @@
       vars:
         vcd: "{{ vcd_context }}"
       loop:
-        - organization
+        #- organization
         - orgvcd
         #- network
