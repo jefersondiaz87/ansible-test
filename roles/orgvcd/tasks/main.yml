@@ -237,6 +237,10 @@
 # ===========================================================
 # 4️⃣ Ejecutar script PowerCLI remoto con log
 # ===========================================================
+- name: Ejecutar PowerCLI en Windows
+  hosts: windows
+  gather_facts: no
+
 - name: Ejecutar script PowerCLI remoto con log
   ansible.builtin.win_shell: |
     Write-Host "=== Iniciando ejecución PowerCLI ==="
