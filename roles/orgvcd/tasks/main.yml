@@ -258,7 +258,6 @@
       -MemoryAllocation {{ vcd.memoryQuota }} `
       -StorageAllocation {{ vcd.storageQuota }} `
       -Description "Organización {{ vcd.orgFullName }} - creado por AWX"
-  delegate_to: win-builder
   vars:
     ansible_connection: winrm
     ansible_host: "100.66.2.151"
