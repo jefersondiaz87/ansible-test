@@ -190,7 +190,7 @@
 
 - name: Determinar si el Org VDC ya existe
   ansible.builtin.set_fact:
-    vdc_exists: "{{ vdc_check.json.values | length > 0 }}"
+    vdc_exists: "{{ vdc_check.json['values'] | length > 0 }}"
   delegate_to: localhost
   connection: local
 
