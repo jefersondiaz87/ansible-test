@@ -234,10 +234,9 @@
 - name: Ejecutar PowerCLI en Windows
   ansible.builtin.win_shell: |
     Write-Host "=== Iniciando ejecucion PowerCLI ==="
-    Write-Host "Servidor: {{ hostvcd }}"
+    Write-Host "Servidor: {{ vcd.host }}"
     Write-Host "Usuario: {{ vcd.user }}"
     Write-Host "OrgName: {{ vcd.orgFullName }}"
-    Write-Host "Script: D:\Users\Jeferson Diaz\Documents\g6\Ansible\orgvcd.ps1"
 
     powershell.exe -ExecutionPolicy Bypass -File "D:\Users\Jeferson Diaz\Documents\g6\Ansible\orgvcd.ps1" `
       -Server "{{ vcd.host }}" `
