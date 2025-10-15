@@ -135,9 +135,15 @@
   ansible.builtin.debug:
     msg: "{{ uplink_subnets | to_nice_json }}"
 
-- name: Tomar primera subnet de la red externa (como vRO)
+- name: Tomar primera subnet de la red externa sin limpiar rangos
   ansible.builtin.set_fact:
-    free_uplink_subnets: "{{ [ uplink_subnets[0] | combine({'ipRanges': {'values': []}}) ] }}"
+    free_uplink_subnets: "{{ [ uplink_subnets[0] ] }}"
+
+- name: Verificar disponibilidad de IPs en external network
+  ansible.builtin.assert:
+    that:
+      - uplink_subnets[0].ipRanges.values | length > 0
+    fail_msg: "❌ No hay IPs disponibles en la external network '{{ externalNetworkName }}'."
 
 - name: Mostrar subnet seleccionada para el Edge
   ansible.builtin.debug:
