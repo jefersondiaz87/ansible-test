@@ -89,5 +89,5 @@
         vcd: "{{ vcd_context }}"
       loop:
         #- organization
-        - orgvcd
-        #- network
+        #- orgvcd
+        - network
