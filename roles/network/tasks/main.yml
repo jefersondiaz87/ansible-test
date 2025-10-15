@@ -176,7 +176,7 @@
   ansible.builtin.set_fact:
     free_subnet: {}
 
-- name: Evaluar subnets para detectar IPs disponibles
+- name: Evaluar subnets para detectar IPs realmente libres
   ansible.builtin.set_fact:
     free_subnet: "{{ item }}"
   loop: "{{ uplink_subnets }}"
@@ -185,10 +185,10 @@
     - item.ipRanges['values'] is defined
     - item.ipRanges['values'] | length > 0
     - (item.usedIpCount | int) < (item.totalIpCount | int)
+    - item.ipRanges['values'][0].startAddress != '190.167.106.4'
     - free_subnet == {}
-  loop_control:
-    label: "{{ item.gateway | default('unknown') }}"
-    
+
+
 - name: Validar que se encontró subnet con IPs libres
   ansible.builtin.fail:
     msg: "❌ No hay subnets con IPs libres en la red externa '{{ externalNetworkName }}'."
