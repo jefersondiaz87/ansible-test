@@ -206,7 +206,7 @@
   ansible.builtin.set_fact:
     selected_ips: "{{ available_ips.json['values'][:(ip_allocate_count | int)] }}"
   when: available_ips.json['values'] | length > 0
-  
+
 - name: Validar que se encontraron IPs suficientes
   ansible.builtin.assert:
     that:
@@ -231,7 +231,18 @@
 # -----------------------------------------------------------
 # Actualizar el Edge Gateway con las IPs seleccionadas
 # -----------------------------------------------------------
-- name: Actualizar Edge Gateway con IPs seleccionadas
+- name: Limpiar estructura de subnets asignadas
+  ansible.builtin.set_fact:
+    cleaned_subnets: >-
+      {{
+        allocated_ips.json.subnets | map('extract', {
+          'gateway': 'gateway',
+          'prefixLength': 'prefixLength',
+          'ipRanges': 'ipRanges'
+        }) | list
+      }}
+
+- name: Actualizar Edge con las IPs nuevas
   when: edge_urn != ''
   ansible.builtin.uri:
     url: "{{ vcd.host }}/cloudapi/1.0.0/edgeGateways/{{ edge_urn }}"
@@ -246,10 +257,10 @@
         - uplinkId: "{{ extNetId }}"
           dedicated: "{{ 'false' if vcd.networkType == 'IO' else 'true' }}"
           subnets:
-            values: "{{ edge_subnets }}"
+            values: "{{ cleaned_subnets | map(attribute='ipRanges') | list }}"
     validate_certs: false
   register: edge_update
-  failed_when: edge_update.status not in [200, 201, 202]
+  failed_when: edge_update.status not in [200,201,202]
 
 - name: Confirmar actualización de Edge Gateway
   ansible.builtin.debug:
