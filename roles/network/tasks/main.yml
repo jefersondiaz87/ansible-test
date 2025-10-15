@@ -273,26 +273,15 @@
 ## -----------------------------------------------------------
 # Normalizar subnets limpias (ya con IPs planas)
 # -----------------------------------------------------------
-- name: Normalizar subnets limpias
+- name: Limpiar estructura de subnets para CloudAPI
   ansible.builtin.set_fact:
-    edge_subnets_clean: >-
-      {{
-        edge_subnets
-        | map('combine', {
-            'ipRanges': {
-              'values': [
-                {
-                  'startAddress': item.ipRanges['values'][0]['startAddress'],
-                  'endAddress': item.ipRanges['values'][0]['endAddress']
-                }
-              ]
-            }
-          })
-        | list
-      }}
-  loop: "{{ edge_subnets }}"
-  loop_control:
-    loop_var: item
+    edge_subnets_clean:
+      - gateway: "{{ uplink_subnets[0].gateway }}"
+        prefixLength: "{{ uplink_subnets[0].prefixLength }}"
+        ipRanges:
+          values:
+            - startAddress: "{{ selected_ips[0] }}"
+              endAddress: "{{ selected_ips[-1] }}"
 
 - name: Mostrar subnets finales limpias
   ansible.builtin.debug:
@@ -300,32 +289,9 @@
 
 
 # -----------------------------------------------------------
-# Construir body completo del PUT con valores existentes
-# -----------------------------------------------------------
-- name: Construir body completo del Edge Gateway con uplink actualizado
-  ansible.builtin.set_fact:
-    edge_update_body: >-
-      {{
-        edge_current.json
-        | combine({
-            'edgeGatewayUplinks': [
-              {
-                'uplinkId': extNetId,
-                'dedicated': false,
-                'subnets': { 'values': edge_subnets_clean }
-              }
-            ]
-          })
-      }}
-
-- name: Mostrar JSON final para depuración
-  ansible.builtin.debug:
-    msg: "{{ edge_update_body | to_nice_json }}"
-
-# -----------------------------------------------------------
 # Enviar actualización al Edge Gateway
 # -----------------------------------------------------------
-- name: Actualizar Edge Gateway con IPs seleccionadas
+- name: Actualizar Edge con IPs válidas
   ansible.builtin.uri:
     url: "{{ vcd.host }}/cloudapi/1.0.0/edgeGateways/{{ edge_urn }}"
     method: PUT
@@ -334,7 +300,14 @@
       Authorization: "Bearer {{ vcd.access_token }}"
       Content-Type: "application/json"
     body_format: json
-    body: "{{ edge_update_body }}"
+    body:
+      name: "{{ edgeGatewayName }}"
+      description: "Edge Gateway actualizado automáticamente por Ansible REST"
+      edgeGatewayUplinks:
+        - uplinkId: "{{ extNetId }}"
+          dedicated: "{{ 'false' if vcd.networkType == 'IO' else 'true' }}"
+          subnets:
+            values: "{{ edge_subnets_clean }}"
     validate_certs: false
   register: edge_update
   failed_when: edge_update.status not in [200,201,202]
