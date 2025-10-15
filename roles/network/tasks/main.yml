@@ -231,11 +231,36 @@
   ansible.builtin.debug:
     msg: "{{ edge_subnets | to_nice_json }}"
 
+- name: Normalizar subnets antes del PUT
+  ansible.builtin.set_fact:
+    edge_subnets_clean: >-
+      {{
+        edge_subnets
+        | map('combine', {
+            'ipRanges': {
+              'values': [
+                {
+                  'startAddress': item.ipRanges.values[0].startAddress.ipRanges.values[0].startAddress,
+                  'endAddress': item.ipRanges.values[0].startAddress.ipRanges.values[0].endAddress
+                }
+              ]
+            }
+          })
+        | list
+      }}
+  loop: "{{ edge_subnets }}"
+  loop_control:
+    loop_var: item
+
+- name: Mostrar estructura final limpia
+  ansible.builtin.debug:
+    msg: "{{ edge_subnets_clean | to_nice_json }}"
+
 # ===========================================================
 # ACTUALIZAR EDGE GATEWAY CON LAS IPs SELECCIONADAS
 # ===========================================================
-- name: Actualizar Edge con las IPs nuevas
-  when: edge_urn is defined and edge_urn != ''
+- name: Actualizar Edge Gateway con IPs seleccionadas
+  when: edge_urn != ''
   ansible.builtin.uri:
     url: "{{ vcd.host }}/cloudapi/1.0.0/edgeGateways/{{ edge_urn }}"
     method: PUT
@@ -249,10 +274,11 @@
         - uplinkId: "{{ extNetId }}"
           dedicated: "{{ 'false' if vcd.networkType == 'IO' else 'true' }}"
           subnets:
-            values: "{{ edge_subnets }}"
+            values: "{{ edge_subnets_clean }}"
     validate_certs: false
   register: edge_update
   failed_when: edge_update.status not in [200,201,202]
+
 
 - name: Confirmar actualización del Edge
   when: edge_update is defined
