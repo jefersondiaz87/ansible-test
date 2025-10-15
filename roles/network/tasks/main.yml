@@ -270,7 +270,7 @@
   register: edge_current
   failed_when: edge_current.status not in [200]
 
-# -----------------------------------------------------------
+## -----------------------------------------------------------
 # Normalizar subnets limpias (ya con IPs planas)
 # -----------------------------------------------------------
 - name: Normalizar subnets limpias
@@ -282,8 +282,8 @@
             'ipRanges': {
               'values': [
                 {
-                  'startAddress': item.ipRanges.values[0].startAddress,
-                  'endAddress': item.ipRanges.values[0].endAddress
+                  'startAddress': item.ipRanges['values'][0]['startAddress'],
+                  'endAddress': item.ipRanges['values'][0]['endAddress']
                 }
               ]
             }
@@ -297,6 +297,7 @@
 - name: Mostrar subnets finales limpias
   ansible.builtin.debug:
     msg: "{{ edge_subnets_clean | to_nice_json }}"
+
 
 # -----------------------------------------------------------
 # Construir body completo del PUT con valores existentes
