@@ -247,7 +247,7 @@
       -VdcName "{{ vcd.orgVdcName }}" `
       -ProvName "{{ provider_match.name }}" `
       -SpName "{{ storage_match.name }}" `
-      -NpName "{{ network_match.id }}" `
+      -NpName "{{ network_match.name }}" `
       -CpuAllocation {{ vcd.cpuQuota }} `
       -MemoryAllocation {{ vcd.memoryQuota }} `
       -StorageAllocation {{ vcd.storageQuota }} `
