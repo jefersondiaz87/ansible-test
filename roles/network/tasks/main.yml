@@ -175,7 +175,7 @@
 - name: Verificar disponibilidad de IPs en external network
   ansible.builtin.assert:
     that:
-      - uplink_subnets[0].ipRanges.values | length > 0
+      - uplink_subnets[0]['ipRanges']['values'] | length > 0
     fail_msg: "❌ No hay IPs disponibles en la external network '{{ externalNetworkName }}'."
 
 - name: Mostrar subnet seleccionada para el Edge
