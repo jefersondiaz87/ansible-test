@@ -214,15 +214,18 @@
     fail_msg: "❌ No hay IPs libres disponibles en la red externa '{{ externalNetworkName }}'."
     success_msg: "✅ Se encontraron IPs libres para asignar al Edge."
 
-- name: Construir estructura de subnets con IPs seleccionadas
+# -----------------------------------------------------------
+# Construir estructura de subnets con IPs seleccionadas (corregido)
+# -----------------------------------------------------------
+- name: Construir estructura de subnets con IPs seleccionadas (formato CloudAPI válido)
   ansible.builtin.set_fact:
     edge_subnets:
       - gateway: "{{ uplink_subnets[0].gateway }}"
         prefixLength: "{{ uplink_subnets[0].prefixLength }}"
         ipRanges:
           values:
-            - startAddress: "{{ selected_ips[0].ipAddress | default(selected_ips[0]) }}"
-              endAddress: "{{ selected_ips[-1].ipAddress | default(selected_ips[-1]) }}"
+            - startAddress: "{{ selected_ips[0].ipAddress if (selected_ips[0] is mapping and 'ipAddress' in selected_ips[0]) else selected_ips[0] }}"
+              endAddress: "{{ selected_ips[-1].ipAddress if (selected_ips[-1] is mapping and 'ipAddress' in selected_ips[-1]) else selected_ips[-1] }}"
 
 - name: Mostrar subnets finales a aplicar
   ansible.builtin.debug:
