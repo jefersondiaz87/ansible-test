@@ -74,7 +74,7 @@
         ext_net_lookup.json['values']
         | selectattr('subnets.values', 'defined')
         | selectattr('subnets.values.0.totalIpCount', '>', 0)
-        | selectattr('subnets.values.0.usedIpCount', '<', attribute='subnets.values.0.totalIpCount')
+        | selectattr('subnets.values.0.usedIpCount', 'lt', subnets.values.0.totalIpCount)
         | list
       }}
 
