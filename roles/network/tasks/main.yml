@@ -67,19 +67,18 @@
 # ===========================================================
 # SELECCIONAR RED EXTERNA CON IPs DISPONIBLES
 # ===========================================================
-- name: Filtrar redes externas con IPs disponibles
+- name: Filtrar redes externas con IPs disponibles (modo compatible)
   ansible.builtin.set_fact:
     available_ext_nets: >-
       {{
         ext_net_lookup.json['values']
-        | select(lambda item: (
-            item.subnets is defined and
-            item.subnets.values is defined and
-            (item.subnets.values[0].usedIpCount | int) <
-            (item.subnets.values[0].totalIpCount | int)
-          ))
+        | selectattr('subnets.values', 'defined')
+        | selectattr('subnets.values.0.usedIpCount', 'defined')
+        | selectattr('subnets.values.0.totalIpCount', 'defined')
+        | selectattr('subnets.values.0.usedIpCount', 'lt',  subnets.values.0.totalIpCount)
         | list
       }}
+
 
 - name: Validar existencia de red con IPs libres
   ansible.builtin.assert:
