@@ -225,7 +225,7 @@
       - "💽 Memory Allocation: {{ vcd.memoryQuota }}"
       - "📦 Storage Allocation: {{ vcd.storageQuota }}"
       - "📝 Descripción: Organización {{ vcd.orgFullName }} - creado por AWX"
-      - "AllocationModel {{ allocation_model }} "
+      - "AllocationModel {{allocation_model}}"
   delegate_to: localhost
   connection: local
 
