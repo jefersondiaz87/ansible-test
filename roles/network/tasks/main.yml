@@ -240,8 +240,8 @@
             'ipRanges': {
               'values': [
                 {
-                  'startAddress': item.ipRanges.values[0].startAddress.ipRanges.values[0].startAddress,
-                  'endAddress': item.ipRanges.values[0].startAddress.ipRanges.values[0].endAddress
+                  'startAddress': item.ipRanges['values'][0].startAddress.ipRanges['values'][0].startAddress,
+                  'endAddress': item.ipRanges['values'][0].startAddress.ipRanges['values'][0].endAddress
                 }
               ]
             }
