@@ -45,7 +45,7 @@
       - "🔍 Estado: {{ 'YA EXISTE ✅' if edge_exists else 'NO EXISTE 🚀 Se procederá a crear' }}"
 
 # ===========================================================
-# OBTENER ID DE LA RED EXTERNA
+# OBTENER ID DE LA RED EXTERNA Y SUBNETS DISPONIBLES
 # ===========================================================
 - name: Buscar red externa por nombre
   ansible.builtin.uri:
@@ -64,35 +64,11 @@
       - ext_net_lookup.json.resultTotal > 0
     fail_msg: "❌ No se encontró la red externa '{{ externalNetworkName }}'."
 
-# ===========================================================
-# SELECCIONAR RED EXTERNA CON IPs DISPONIBLES
-# ===========================================================
-- name: Inicializar lista de redes con IPs disponibles
+- name: Seleccionar la primera red externa con IPs libres
   ansible.builtin.set_fact:
-    available_ext_nets: []
-
-- name: Evaluar redes externas para detectar IPs libres
-  ansible.builtin.set_fact:
-    available_ext_nets: "{{ available_ext_nets + [item] }}"
-  loop: "{{ ext_net_lookup.json['values'] }}"
-  when:
-    - item.subnets is defined
-    - item.subnets['values'] is defined
-    - item.subnets['values'] | length > 0
-    - (item.subnets['values'][0].usedIpCount | int) < (item.subnets['values'][0].totalIpCount | int)
-
-- name: Validar si se encontró al menos una red con IPs libres
-  ansible.builtin.assert:
-    that:
-      - available_ext_nets | length > 0
-    fail_msg: "❌ No hay ninguna external network con IPs disponibles."
-    success_msg: "✅ Se encontró al menos una external network con IPs libres."
-
-- name: Tomar la primera red externa con IPs libres
-  ansible.builtin.set_fact:
-    selected_ext_net: "{{ available_ext_nets[0] }}"
-    extNetId: "{{ available_ext_nets[0]['id'] }}"
-    uplink_subnets: "{{ available_ext_nets[0]['subnets']['values'] }}"
+    selected_ext_net: "{{ ext_net_lookup.json['values'][0] }}"
+    extNetId: "{{ ext_net_lookup.json['values'][0]['id'] }}"
+    uplink_subnets: "{{ ext_net_lookup.json['values'][0]['subnets']['values'] }}"
 
 - name: Mostrar red externa seleccionada
   ansible.builtin.debug:
@@ -135,91 +111,25 @@
   register: orgvdc_status
   failed_when: orgvdc_status.status not in [200]
 
-- name: Inspeccionar estructura devuelta del Org VDC
-  ansible.builtin.debug:
-    var: orgvdc_status.json
-
-- name: Detectar estado del Org VDC (seguro ante cambios de esquema)
+- name: Detectar estado del Org VDC
   ansible.builtin.set_fact:
-    orgvdc_state: >-
-      {{
-        "ENABLED"
-        if 'id' in orgvdc_status.json
-        else "UNKNOWN"
-      }}
-
-- name: Mostrar estado actual del Org VDC
-  ansible.builtin.debug:
-    msg:
-      - "🏢 Org VDC: {{ vcd.orgVdcName }}"
-      - "🔎 Estado detectado: {{ orgvdc_state }}"
+    orgvdc_state: "{{ 'ENABLED' if 'id' in orgvdc_status.json else 'UNKNOWN' }}"
 
 - name: Validar que el Org VDC está habilitado
   ansible.builtin.assert:
     that:
-      - orgvdc_state == "ENABLED"
-    fail_msg: "❌ El Org VDC '{{ vcd.orgVdcName }}' no está habilitado (estado: {{ orgvdc_state }}). No se puede desplegar un Edge Gateway."
-    success_msg: "✅ El Org VDC '{{ vcd.orgVdcName }}' está habilitado y listo para desplegar Edge Gateway."
+      - orgvdc_state == 'ENABLED'
+    fail_msg: "❌ El Org VDC '{{ vcd.orgVdcName }}' no está habilitado."
+    success_msg: "✅ El Org VDC '{{ vcd.orgVdcName }}' está habilitado."
 
 # ===========================================================
-# MOSTRAR Y SELECCIONAR SUBNET (modo vRO)
+# CREAR EDGE GATEWAY SIN IPs (LÓGICA VRO)
 # ===========================================================
-- name: Mostrar subnets detectadas
-  ansible.builtin.debug:
-    msg: "{{ uplink_subnets | to_nice_json }}"
-
-# ===========================================================
-# SELECCIONAR LA PRIMERA SUBNET CON IPs DISPONIBLES
-# ===========================================================
-
-- name: Inicializar variable de subnet libre
+- name: Limpiar ipRanges antes de crear el Edge
   ansible.builtin.set_fact:
-    free_subnet: {}
+    clean_subnets: "{{ uplink_subnets | map('combine', {'ipRanges': {'values': []}}) | list }}"
 
-- name: Evaluar subnets para detectar IPs realmente libres
-  ansible.builtin.set_fact:
-    free_subnet: "{{ item }}"
-  loop: "{{ uplink_subnets }}"
-  when:
-    - item.ipRanges is defined
-    - item.ipRanges['values'] is defined
-    - item.ipRanges['values'] | length > 0
-    - (item.usedIpCount | int) < (item.totalIpCount | int)
-    - item.ipRanges['values'][0].startAddress != '190.167.106.4'
-    - free_subnet == {}
-
-
-- name: Validar que se encontró subnet con IPs libres
-  ansible.builtin.fail:
-    msg: "❌ No hay subnets con IPs libres en la red externa '{{ externalNetworkName }}'."
-  when: free_subnet == {}
-
-- name: Mostrar subnet seleccionada para el Edge
-  ansible.builtin.debug:
-    msg:
-      - "🌐 Subnet seleccionada: {{ free_subnet.gateway }} /{{ free_subnet.prefixLength }}"
-      - "📊 Usadas: {{ free_subnet.usedIpCount }} / {{ free_subnet.totalIpCount }}"
-
-- name: Definir lista de subnets a usar en payload
-  ansible.builtin.set_fact:
-    free_uplink_subnets: "{{ [ free_subnet ] }}"
-
-- name: Verificar disponibilidad de IPs en external network
-  ansible.builtin.assert:
-    that:
-      - uplink_subnets[0]['ipRanges']['values'] | length > 0
-    fail_msg: "❌ No hay IPs disponibles en la external network '{{ externalNetworkName }}'."
-
-- name: Mostrar subnet seleccionada para el Edge
-  ansible.builtin.debug:
-    msg:
-      - "🌐 Subnet usada: {{ free_uplink_subnets[0].gateway }} /{{ free_uplink_subnets[0].prefixLength }}"
-      - "🧹 Rango IP limpiado para asignación automática"
-
-# ===========================================================
-# CONSTRUIR PAYLOAD DEL EDGE GATEWAY (OpenAPI 1.0.0)
-# ===========================================================
-- name: Construir payload del Edge Gateway
+- name: Construir payload del Edge Gateway (sin IPs)
   ansible.builtin.set_fact:
     edge_payload:
       name: "{{ edgeGatewayName }}"
@@ -230,19 +140,9 @@
         - uplinkId: "{{ extNetId }}"
           dedicated: "{{ 'false' if vcd.networkType == 'IO' else 'true' }}"
           subnets:
-            values: "{{ free_uplink_subnets }}"
+            values: "{{ clean_subnets }}"
 
-- name: Validar estructura del payload antes de enviar
-  ansible.builtin.assert:
-    that:
-      - (edge_payload.edgeGatewayUplinks[0].subnets['values'] | default([])) | length > 0
-      - edge_payload.orgVdc.id is defined
-    fail_msg: "❌ El payload del Edge Gateway está incompleto o mal estructurado."
-
-# ===========================================================
-# CREAR EDGE GATEWAY
-# ===========================================================
-- name: Crear Edge Gateway vía CloudAPI
+- name: Crear Edge Gateway vía CloudAPI (sin IPs)
   when: not edge_exists
   ansible.builtin.uri:
     url: "{{ vcd.host }}/cloudapi/1.0.0/edgeGateways"
@@ -255,16 +155,8 @@
     body: "{{ edge_payload }}"
     validate_certs: false
   register: edge_create
-  failed_when: edge_create.status not in [200, 201, 202]
+  failed_when: edge_create.status not in [200,201,202]
 
-- name: Mostrar resultado de creación
-  when: not edge_exists
-  ansible.builtin.debug:
-    msg: "✅ Edge Gateway '{{ edgeGatewayName }}' creado correctamente con ID: {{ edge_create.json.id }}"
-
-# ===========================================================
-# OBTENER URN FINAL DEL EDGE
-# ===========================================================
 - name: Obtener URN del Edge Gateway creado
   ansible.builtin.uri:
     url: "{{ vcd.host }}/cloudapi/1.0.0/edgeGateways?filter=name=={{ edgeGatewayName }}"
@@ -279,17 +171,17 @@
   ansible.builtin.set_fact:
     edge_urn: "{{ edge_query.json['values'][0]['id'] if (edge_query.json['values'] | length > 0) else '' }}"
 
-- name: Mostrar URN final del Edge Gateway
-  ansible.builtin.debug:
-    msg: "🆔 Edge Gateway creado con URN: {{ edge_urn }}"
+# ===========================================================
+# ASIGNAR IPs POST-CREACIÓN (allocateIpAddresses + PUT)
+# ===========================================================
+- name: Definir cantidad de IPs a solicitar
+  ansible.builtin.set_fact:
+    ip_allocate_count: "{{ vcd.edgeIpAllocationCount | default(5) }}"
 
-# ===========================================================
-# ASIGNAR METADATA (TrialMode)
-# ===========================================================
-- name: Asignar metadata TrialMode al Edge Gateway
+- name: Solicitar IPs libres al External Network
   when: edge_urn != ''
   ansible.builtin.uri:
-    url: "{{ vcd.host }}/cloudapi/1.0.0/entities/{{ edge_urn }}/metadata"
+    url: "{{ vcd.host }}/cloudapi/1.0.0/externalNetworks/{{ extNetId }}/allocateIpAddresses"
     method: POST
     headers:
       Accept: "application/json;version={{ vcd.api_version }}"
@@ -297,14 +189,34 @@
       Content-Type: "application/json"
     body_format: json
     body:
-      key: "TrialMode"
-      value: "{{ trial | string | lower }}"
-      type: "STRING"
+      count: "{{ ip_allocate_count | int }}"
     validate_certs: false
-  register: metadata_update
-  failed_when: metadata_update.status not in [200, 201, 202]
+  register: allocated_ips
+  failed_when: allocated_ips.status not in [200,201,202]
 
-- name: Confirmar metadata aplicada
+- name: Actualizar Edge con las IPs nuevas
   when: edge_urn != ''
+  ansible.builtin.uri:
+    url: "{{ vcd.host }}/cloudapi/1.0.0/edgeGateways/{{ edge_urn }}"
+    method: PUT
+    headers:
+      Accept: "application/json;version={{ vcd.api_version }}"
+      Authorization: "Bearer {{ vcd.access_token }}"
+      Content-Type: "application/json"
+    body_format: json
+    body:
+      edgeGatewayUplinks:
+        - uplinkId: "{{ extNetId }}"
+          dedicated: "{{ 'false' if vcd.networkType == 'IO' else 'true' }}"
+          subnets:
+            values: "{{ allocated_ips.json.subnets }}"
+    validate_certs: false
+  register: edge_update
+  failed_when: edge_update.status not in [200,201,202]
+
+- name: Confirmar actualización del Edge
   ansible.builtin.debug:
-    msg: "🟢 Metadata 'TrialMode={{ 'true' if trial else 'false' }}' aplicada correctamente."
+    msg:
+      - "✅ Edge Gateway actualizado con IPs asignadas correctamente."
+      - "📡 Edge ID: {{ edge_urn }}"
+      - "🌐 IPs asignadas: {{ allocated_ips.json.subnets | to_nice_json }}"
