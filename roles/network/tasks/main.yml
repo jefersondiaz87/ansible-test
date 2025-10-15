@@ -171,19 +171,24 @@
 # ===========================================================
 # SELECCIONAR LA PRIMERA SUBNET CON IPs DISPONIBLES
 # ===========================================================
-- name: Buscar subnet con IPs libres
-  ansible.builtin.set_fact:
-    free_subnet: >-
-      {{
-        (uplink_subnets
-        | selectattr('ipRanges', 'defined')
-        | selectattr('ipRanges.values', 'defined')
-        | select(lambda s: (s.usedIpCount | int) < (s.totalIpCount | int))
-        | list
-        | first)
-        | default({})
-      }}
 
+- name: Inicializar variable de subnet libre
+  ansible.builtin.set_fact:
+    free_subnet: {}
+
+- name: Evaluar subnets para detectar IPs disponibles
+  ansible.builtin.set_fact:
+    free_subnet: "{{ item }}"
+  loop: "{{ uplink_subnets }}"
+  when:
+    - item.ipRanges is defined
+    - item.ipRanges['values'] is defined
+    - item.ipRanges['values'] | length > 0
+    - (item.usedIpCount | int) < (item.totalIpCount | int)
+    - free_subnet == {}
+  loop_control:
+    label: "{{ item.gateway | default('unknown') }}"
+    
 - name: Validar que se encontró subnet con IPs libres
   ansible.builtin.fail:
     msg: "❌ No hay subnets con IPs libres en la red externa '{{ externalNetworkName }}'."
