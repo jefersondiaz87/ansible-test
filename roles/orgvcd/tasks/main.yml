@@ -239,7 +239,7 @@
     Write-Host "Usuario: {{ vcd.user }}"
     Write-Host "OrgName: {{ vcd.orgFullName }}"
     powershell.exe -ExecutionPolicy Bypass -File "D:\Users\Jeferson Diaz\Documents\g6\Ansible\orgvcd.ps1" `
-      -AllocationModel"{{allocation_model}}" `
+      -AllocationModel "{{allocation_model}}" `
       -Server "{{ vcd.host }}" `
       -Username "{{ vcd.user }}" `
       -Password "{{ vcd.password }}" `
