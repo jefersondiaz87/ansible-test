@@ -193,7 +193,7 @@
 - name: Mostrar IPs disponibles detectadas
   when: edge_urn != ''
   ansible.builtin.debug:
-    msg: "📬 IPs disponibles: {{ available_ips.json['values'] | map(attribute='ipAddress') | list }}"
+    msg: "📬 IPs disponibles: {{ available_ips.json['values'] }}"
 
 # -----------------------------------------------------------
 # Seleccionar las IPs a usar
@@ -204,7 +204,7 @@
 
 - name: Seleccionar primeras IPs libres
   ansible.builtin.set_fact:
-    selected_ips: "{{ available_ips.json['values'][:ip_allocate_count] | map(attribute='ipAddress') | list }}"
+    selected_ips: "{{ available_ips.json['values'][:ip_allocate_count] }}"
   when: available_ips.json['values'] | length > 0
 
 - name: Validar que se encontraron IPs suficientes
@@ -257,4 +257,3 @@
       - "✅ Edge Gateway '{{ edgeGatewayName }}' actualizado correctamente con IPs asignadas."
       - "🆔 Edge URN: {{ edge_urn }}"
       - "🌐 IPs aplicadas: {{ selected_ips }}"
-
