@@ -64,10 +64,39 @@
       - ext_net_lookup.json.resultTotal > 0
     fail_msg: "❌ No se encontró la red externa '{{ externalNetworkName }}'."
 
-- name: Guardar datos de la red externa
+# ===========================================================
+# SELECCIONAR RED EXTERNA CON IPs DISPONIBLES
+# ===========================================================
+- name: Filtrar redes externas con IPs disponibles
   ansible.builtin.set_fact:
-    extNetId: "{{ ext_net_lookup.json['values'][0]['id'] }}"
-    uplink_subnets: "{{ ext_net_lookup.json['values'][0]['subnets']['values'] }}"
+    available_ext_nets: >-
+      {{
+        ext_net_lookup.json['values']
+        | selectattr('subnets.values', 'defined')
+        | selectattr('subnets.values.0.totalIpCount', '>', 0)
+        | selectattr('subnets.values.0.usedIpCount', '<', attribute='subnets.values.0.totalIpCount')
+        | list
+      }}
+
+- name: Validar existencia de red con IPs libres
+  ansible.builtin.assert:
+    that:
+      - available_ext_nets | length > 0
+    fail_msg: "❌ No hay ninguna external network con IPs libres disponibles."
+
+- name: Tomar la primera red externa con IPs libres
+  ansible.builtin.set_fact:
+    selected_ext_net: "{{ available_ext_nets[0] }}"
+    extNetId: "{{ available_ext_nets[0]['id'] }}"
+    uplink_subnets: "{{ available_ext_nets[0]['subnets']['values'] }}"
+
+- name: Mostrar red seleccionada automáticamente
+  ansible.builtin.debug:
+    msg:
+      - "✅ Red externa seleccionada: {{ selected_ext_net.name }}"
+      - "🆔 ID: {{ selected_ext_net.id }}"
+      - "🌐 Gateway: {{ uplink_subnets[0].gateway }}"
+      - "📊 IPs usadas: {{ uplink_subnets[0].usedIpCount }} / {{ uplink_subnets[0].totalIpCount }}"
 
 # ===========================================================
 # OBTENER ORG VDC ID
