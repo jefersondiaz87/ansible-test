@@ -246,8 +246,8 @@
       -Password "{{ vcd.password }}" `
       -OrgName "{{ vcd.orgFullName }}" `
       -VdcName "{{ vcd.orgVdcName }}" `
-      -ProvName "{{ provider_match.id }}" `
-      -SpName "{{ storage_match.id }}" `
+      -ProvName "{{ provider_match.name }}" `
+      -SpName "{{ storage_match.name }}" `
       -NpName "{{ network_match.id }}" `
       -CpuAllocation {{ vcd.cpuQuota }} `
       -MemoryAllocation {{ vcd.memoryQuota }} `
