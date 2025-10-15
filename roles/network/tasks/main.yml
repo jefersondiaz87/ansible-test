@@ -77,9 +77,9 @@
   loop: "{{ ext_net_lookup.json['values'] }}"
   when:
     - item.subnets is defined
-    - item.subnets.values is defined
-    - item.subnets.values | length > 0
-    - (item.subnets.values[0].usedIpCount | int) < (item.subnets.values[0].totalIpCount | int)
+    - item.subnets['values'] is defined
+    - item.subnets['values'] | length > 0
+    - (item.subnets['values'][0].usedIpCount | int) < (item.subnets['values'][0].totalIpCount | int)
 
 - name: Validar si se encontró al menos una red con IPs libres
   ansible.builtin.assert:
