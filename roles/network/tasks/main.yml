@@ -178,8 +178,7 @@
         (uplink_subnets
         | selectattr('ipRanges', 'defined')
         | selectattr('ipRanges.values', 'defined')
-        | selectattr('ipRanges.values', '!=', [])
-        | selectattr('usedIpCount', 'lt', 'totalIpCount')
+        | select(lambda s: (s.usedIpCount | int) < (s.totalIpCount | int))
         | list
         | first)
         | default({})
