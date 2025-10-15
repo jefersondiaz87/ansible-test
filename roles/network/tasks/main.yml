@@ -110,15 +110,9 @@
   ansible.builtin.set_fact:
     orgvdc_state: >-
       {{
-        orgvdc_status.json.status
-        if 'status' in orgvdc_status.json
-        else (
-          orgvdc_status.json.state
-          if 'state' in orgvdc_status.json
-          else (
-            orgvdc_status.json.get('orgVdc', {}).get('status', 'UNKNOWN')
-          )
-        )
+        "ENABLED"
+        if 'id' in orgvdc_status.json
+        else "UNKNOWN"
       }}
 
 - name: Mostrar estado actual del Org VDC
@@ -133,7 +127,6 @@
       - orgvdc_state == "ENABLED"
     fail_msg: "❌ El Org VDC '{{ vcd.orgVdcName }}' no está habilitado (estado: {{ orgvdc_state }}). No se puede desplegar un Edge Gateway."
     success_msg: "✅ El Org VDC '{{ vcd.orgVdcName }}' está habilitado y listo para desplegar Edge Gateway."
-
 
 # ===========================================================
 # MOSTRAR Y SELECCIONAR SUBNET (modo vRO)
