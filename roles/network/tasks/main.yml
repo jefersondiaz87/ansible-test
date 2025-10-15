@@ -67,24 +67,26 @@
 # ===========================================================
 # SELECCIONAR RED EXTERNA CON IPs DISPONIBLES
 # ===========================================================
-- name: Filtrar redes externas con IPs disponibles (modo compatible)
+- name: Inicializar lista de redes con IPs disponibles
   ansible.builtin.set_fact:
-    available_ext_nets: >-
-      {{
-        ext_net_lookup.json['values']
-        | selectattr('subnets.values', 'defined')
-        | selectattr('subnets.values.0.usedIpCount', 'defined')
-        | selectattr('subnets.values.0.totalIpCount', 'defined')
-        | selectattr('subnets.values.0.usedIpCount', 'lt',  subnets.values.0.totalIpCount)
-        | list
-      }}
+    available_ext_nets: []
 
+- name: Evaluar redes externas para detectar IPs libres
+  ansible.builtin.set_fact:
+    available_ext_nets: "{{ available_ext_nets + [item] }}"
+  loop: "{{ ext_net_lookup.json['values'] }}"
+  when:
+    - item.subnets is defined
+    - item.subnets.values is defined
+    - item.subnets.values | length > 0
+    - (item.subnets.values[0].usedIpCount | int) < (item.subnets.values[0].totalIpCount | int)
 
-- name: Validar existencia de red con IPs libres
+- name: Validar si se encontró al menos una red con IPs libres
   ansible.builtin.assert:
     that:
       - available_ext_nets | length > 0
-    fail_msg: "❌ No hay ninguna external network con IPs libres disponibles."
+    fail_msg: "❌ No hay ninguna external network con IPs disponibles."
+    success_msg: "✅ Se encontró al menos una external network con IPs libres."
 
 - name: Tomar la primera red externa con IPs libres
   ansible.builtin.set_fact:
@@ -92,13 +94,13 @@
     extNetId: "{{ available_ext_nets[0]['id'] }}"
     uplink_subnets: "{{ available_ext_nets[0]['subnets']['values'] }}"
 
-- name: Mostrar red seleccionada automáticamente
+- name: Mostrar red externa seleccionada
   ansible.builtin.debug:
     msg:
-      - "✅ Red externa seleccionada: {{ selected_ext_net.name }}"
-      - "🆔 ID: {{ selected_ext_net.id }}"
-      - "🌐 Gateway: {{ uplink_subnets[0].gateway }}"
-      - "📊 IPs usadas: {{ uplink_subnets[0].usedIpCount }} / {{ uplink_subnets[0].totalIpCount }}"
+      - "🌐 Red seleccionada: {{ selected_ext_net.name }}"
+      - "💡 Gateway: {{ uplink_subnets[0].gateway }}"
+      - "📦 Total IPs: {{ uplink_subnets[0].totalIpCount }}"
+      - "🔢 Usadas: {{ uplink_subnets[0].usedIpCount }}"
 
 # ===========================================================
 # OBTENER ORG VDC ID
