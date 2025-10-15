@@ -168,9 +168,37 @@
   ansible.builtin.debug:
     msg: "{{ uplink_subnets | to_nice_json }}"
 
-- name: Tomar primera subnet de la red externa sin limpiar rangos
+# ===========================================================
+# SELECCIONAR LA PRIMERA SUBNET CON IPs DISPONIBLES
+# ===========================================================
+- name: Buscar subnet con IPs libres
   ansible.builtin.set_fact:
-    free_uplink_subnets: "{{ [ uplink_subnets[0] ] }}"
+    free_subnet: >-
+      {{
+        (uplink_subnets
+        | selectattr('ipRanges', 'defined')
+        | selectattr('ipRanges.values', 'defined')
+        | selectattr('ipRanges.values', '!=', [])
+        | selectattr('usedIpCount', 'lt', 'totalIpCount')
+        | list
+        | first)
+        | default({})
+      }}
+
+- name: Validar que se encontró subnet con IPs libres
+  ansible.builtin.fail:
+    msg: "❌ No hay subnets con IPs libres en la red externa '{{ externalNetworkName }}'."
+  when: free_subnet == {}
+
+- name: Mostrar subnet seleccionada para el Edge
+  ansible.builtin.debug:
+    msg:
+      - "🌐 Subnet seleccionada: {{ free_subnet.gateway }} /{{ free_subnet.prefixLength }}"
+      - "📊 Usadas: {{ free_subnet.usedIpCount }} / {{ free_subnet.totalIpCount }}"
+
+- name: Definir lista de subnets a usar en payload
+  ansible.builtin.set_fact:
+    free_uplink_subnets: "{{ [ free_subnet ] }}"
 
 - name: Verificar disponibilidad de IPs en external network
   ansible.builtin.assert:
