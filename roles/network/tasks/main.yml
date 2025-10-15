@@ -171,30 +171,67 @@
   ansible.builtin.set_fact:
     edge_urn: "{{ edge_query.json['values'][0]['id'] if (edge_query.json['values'] | length > 0) else '' }}"
 
+## ===========================================================
+# ASIGNAR IPs POST-CREACIÓN (CloudAPI 1.0.0)
 # ===========================================================
-# ASIGNAR IPs POST-CREACIÓN (allocateIpAddresses + PUT)
-# ===========================================================
-- name: Definir cantidad de IPs a solicitar
-  ansible.builtin.set_fact:
-    ip_allocate_count: "{{ vcd.edgeIpAllocationCount | default(5) }}"
 
-- name: Solicitar IPs libres al External Network
+# -----------------------------------------------------------
+# Obtener IPs disponibles desde la External Network
+# -----------------------------------------------------------
+- name: Obtener IPs disponibles del External Network
   when: edge_urn != ''
   ansible.builtin.uri:
-    url: "{{ vcd.host }}/cloudapi/1.0.0/externalNetworks/{{ extNetId }}/allocateIpAddresses"
-    method: POST
+    url: "{{ vcd.host }}/cloudapi/1.0.0/externalNetworks/{{ extNetId }}/availableIpAddresses"
+    method: GET
     headers:
       Accept: "application/json;version={{ vcd.api_version }}"
       Authorization: "Bearer {{ vcd.access_token }}"
-      Content-Type: "application/json"
-    body_format: json
-    body:
-      count: "{{ ip_allocate_count | int }}"
     validate_certs: false
-  register: allocated_ips
-  failed_when: allocated_ips.status not in [200,201,202]
+  register: available_ips
+  failed_when: available_ips.status not in [200]
 
-- name: Actualizar Edge con las IPs nuevas
+- name: Mostrar IPs disponibles detectadas
+  when: edge_urn != ''
+  ansible.builtin.debug:
+    msg: "📬 IPs disponibles: {{ available_ips.json['values'] | map(attribute='ipAddress') | list }}"
+
+# -----------------------------------------------------------
+# Seleccionar las IPs a usar
+# -----------------------------------------------------------
+- name: Definir cantidad de IPs a usar
+  ansible.builtin.set_fact:
+    ip_allocate_count: "{{ vcd.edgeIpAllocationCount | default(5) }}"
+
+- name: Seleccionar primeras IPs libres
+  ansible.builtin.set_fact:
+    selected_ips: "{{ available_ips.json['values'][:ip_allocate_count] | map(attribute='ipAddress') | list }}"
+  when: available_ips.json['values'] | length > 0
+
+- name: Validar que se encontraron IPs suficientes
+  ansible.builtin.assert:
+    that:
+      - selected_ips | length > 0
+    fail_msg: "❌ No hay IPs libres disponibles en la red externa '{{ externalNetworkName }}'."
+    success_msg: "✅ Se encontraron IPs libres para asignar al Edge."
+
+- name: Construir estructura de subnets con IPs seleccionadas
+  ansible.builtin.set_fact:
+    edge_subnets:
+      - gateway: "{{ uplink_subnets[0].gateway }}"
+        prefixLength: "{{ uplink_subnets[0].prefixLength }}"
+        ipRanges:
+          values:
+            - startAddress: "{{ selected_ips[0] }}"
+              endAddress: "{{ selected_ips[-1] }}"
+
+- name: Mostrar subnets finales a aplicar
+  ansible.builtin.debug:
+    msg: "{{ edge_subnets | to_nice_json }}"
+
+# -----------------------------------------------------------
+# Actualizar el Edge Gateway con las IPs seleccionadas
+# -----------------------------------------------------------
+- name: Actualizar Edge Gateway con IPs seleccionadas
   when: edge_urn != ''
   ansible.builtin.uri:
     url: "{{ vcd.host }}/cloudapi/1.0.0/edgeGateways/{{ edge_urn }}"
@@ -209,14 +246,15 @@
         - uplinkId: "{{ extNetId }}"
           dedicated: "{{ 'false' if vcd.networkType == 'IO' else 'true' }}"
           subnets:
-            values: "{{ allocated_ips.json.subnets }}"
+            values: "{{ edge_subnets }}"
     validate_certs: false
   register: edge_update
-  failed_when: edge_update.status not in [200,201,202]
+  failed_when: edge_update.status not in [200, 201, 202]
 
-- name: Confirmar actualización del Edge
+- name: Confirmar actualización de Edge Gateway
   ansible.builtin.debug:
     msg:
-      - "✅ Edge Gateway actualizado con IPs asignadas correctamente."
-      - "📡 Edge ID: {{ edge_urn }}"
-      - "🌐 IPs asignadas: {{ allocated_ips.json.subnets | to_nice_json }}"
+      - "✅ Edge Gateway '{{ edgeGatewayName }}' actualizado correctamente con IPs asignadas."
+      - "🆔 Edge URN: {{ edge_urn }}"
+      - "🌐 IPs aplicadas: {{ selected_ips }}"
+
