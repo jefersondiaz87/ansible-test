@@ -221,29 +221,18 @@
         prefixLength: "{{ uplink_subnets[0].prefixLength }}"
         ipRanges:
           values:
-            - startAddress: "{{ selected_ips[0] }}"
-              endAddress: "{{ selected_ips[-1] }}"
+            - startAddress: "{{ selected_ips[0].ipAddress | default(selected_ips[0]) }}"
+              endAddress: "{{ selected_ips[-1].ipAddress | default(selected_ips[-1]) }}"
 
 - name: Mostrar subnets finales a aplicar
   ansible.builtin.debug:
     msg: "{{ edge_subnets | to_nice_json }}"
 
-# -----------------------------------------------------------
-# Actualizar el Edge Gateway con las IPs seleccionadas
-# -----------------------------------------------------------
-- name: Limpiar estructura de subnets asignadas
-  ansible.builtin.set_fact:
-    cleaned_subnets: >-
-      {{
-        allocated_ips.json.subnets | map('extract', {
-          'gateway': 'gateway',
-          'prefixLength': 'prefixLength',
-          'ipRanges': 'ipRanges'
-        }) | list
-      }}
-
+# ===========================================================
+# ACTUALIZAR EDGE GATEWAY CON LAS IPs SELECCIONADAS
+# ===========================================================
 - name: Actualizar Edge con las IPs nuevas
-  when: edge_urn != ''
+  when: edge_urn is defined and edge_urn != ''
   ansible.builtin.uri:
     url: "{{ vcd.host }}/cloudapi/1.0.0/edgeGateways/{{ edge_urn }}"
     method: PUT
@@ -257,14 +246,15 @@
         - uplinkId: "{{ extNetId }}"
           dedicated: "{{ 'false' if vcd.networkType == 'IO' else 'true' }}"
           subnets:
-            values: "{{ cleaned_subnets | map(attribute='ipRanges') | list }}"
+            values: "{{ edge_subnets }}"
     validate_certs: false
   register: edge_update
   failed_when: edge_update.status not in [200,201,202]
 
-- name: Confirmar actualización de Edge Gateway
+- name: Confirmar actualización del Edge
+  when: edge_update is defined
   ansible.builtin.debug:
     msg:
-      - "✅ Edge Gateway '{{ edgeGatewayName }}' actualizado correctamente con IPs asignadas."
-      - "🆔 Edge URN: {{ edge_urn }}"
-      - "🌐 IPs aplicadas: {{ selected_ips }}"
+      - "✅ Edge Gateway actualizado correctamente con IPs seleccionadas."
+      - "📡 Edge ID: {{ edge_urn }}"
+      - "🌐 Subnets aplicadas: {{ edge_subnets | to_nice_json }}"
