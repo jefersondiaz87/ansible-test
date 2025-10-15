@@ -256,6 +256,93 @@
   ansible.builtin.debug:
     msg: "{{ edge_subnets_clean | to_nice_json }}"
 
+# -----------------------------------------------------------
+# Obtener configuración actual del Edge Gateway
+# -----------------------------------------------------------
+- name: Obtener configuración actual del Edge Gateway
+  ansible.builtin.uri:
+    url: "{{ vcd.host }}/cloudapi/1.0.0/edgeGateways/{{ edge_urn }}"
+    method: GET
+    headers:
+      Accept: "application/json;version={{ vcd.api_version }}"
+      Authorization: "Bearer {{ vcd.access_token }}"
+    validate_certs: false
+  register: edge_current
+  failed_when: edge_current.status not in [200]
+
+# -----------------------------------------------------------
+# Normalizar subnets limpias (ya con IPs planas)
+# -----------------------------------------------------------
+- name: Normalizar subnets limpias
+  ansible.builtin.set_fact:
+    edge_subnets_clean: >-
+      {{
+        edge_subnets
+        | map('combine', {
+            'ipRanges': {
+              'values': [
+                {
+                  'startAddress': item.ipRanges.values[0].startAddress,
+                  'endAddress': item.ipRanges.values[0].endAddress
+                }
+              ]
+            }
+          })
+        | list
+      }}
+  loop: "{{ edge_subnets }}"
+  loop_control:
+    loop_var: item
+
+- name: Mostrar subnets finales limpias
+  ansible.builtin.debug:
+    msg: "{{ edge_subnets_clean | to_nice_json }}"
+
+# -----------------------------------------------------------
+# Construir body completo del PUT con valores existentes
+# -----------------------------------------------------------
+- name: Construir body completo del Edge Gateway con uplink actualizado
+  ansible.builtin.set_fact:
+    edge_update_body: >-
+      {{
+        edge_current.json
+        | combine({
+            'edgeGatewayUplinks': [
+              {
+                'uplinkId': extNetId,
+                'dedicated': false,
+                'subnets': { 'values': edge_subnets_clean }
+              }
+            ]
+          })
+      }}
+
+- name: Mostrar JSON final para depuración
+  ansible.builtin.debug:
+    msg: "{{ edge_update_body | to_nice_json }}"
+
+# -----------------------------------------------------------
+# Enviar actualización al Edge Gateway
+# -----------------------------------------------------------
+- name: Actualizar Edge Gateway con IPs seleccionadas
+  ansible.builtin.uri:
+    url: "{{ vcd.host }}/cloudapi/1.0.0/edgeGateways/{{ edge_urn }}"
+    method: PUT
+    headers:
+      Accept: "application/json;version={{ vcd.api_version }}"
+      Authorization: "Bearer {{ vcd.access_token }}"
+      Content-Type: "application/json"
+    body_format: json
+    body: "{{ edge_update_body }}"
+    validate_certs: false
+  register: edge_update
+  failed_when: edge_update.status not in [200,201,202]
+
+- name: Confirmar resultado del PUT
+  ansible.builtin.debug:
+    msg: "✅ Edge actualizado correctamente: {{ edge_update.status }}"
+
+
 # ===========================================================
 # ACTUALIZAR EDGE GATEWAY CON LAS IPs SELECCIONADAS
 # ===========================================================
