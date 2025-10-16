@@ -147,7 +147,7 @@
       -NetworkName "{{ uplink_name }}" `
       -Gateway "{{ gateway }}" `
       -StartIP "{{ start_ip }}" `
-      -EndIP "{{ end_ip }}"
+      -EndIP "{{ end_ip }}" `
       -AccessToken "{{vcd.access_token}}"
 
   vars:
