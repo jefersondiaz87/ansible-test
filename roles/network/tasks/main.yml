@@ -78,27 +78,6 @@
       -EdgeName "{{ edgeGatewayName }}" `
       -$Type = "{{ vcd.networkType }}" `
       -ExternalNetworkName "{{ vcd.orgVdcName.split('-')[0] }}"
-  register: edge_create_result
-  delegate_to: win-builder
-
-# ===========================================================
-# 4️⃣ Ejecutar script PowerCLI remoto con log
-# ===========================================================
-- name: Ejecutar PowerCLI en Windows
-  ansible.builtin.win_shell: |
-    Write-Host "=== Iniciando ejecucion PowerCLI ==="
-    Write-Host "Servidor: {{ vcd.host }}"
-    Write-Host "Usuario: {{ vcd.user }}"
-    Write-Host "OrgName: {{ vcd.orgFullName }}"
-    Write-Host "EdgeName: {{ network_match.name }}"
-    powershell.exe -ExecutionPolicy Bypass -File "D:\Users\Jeferson Diaz\Documents\g6\Ansible\network.ps1" `
-      -Server "{{ vcd.host }}" `
-      -Username "{{ vcd.user }}" `
-      -Password "{{ vcd.password }}" `
-      -VdcName "{{ vcd.orgVdcName }}" `
-      -EdgeName "{{ network_match.name }}" `
-      -$Type = "{{ vcd.networkType }}" `
-      -Description "Network Edge {{ vcd.orgFullName }} - creado por AWX"
 
   vars:
     ansible_connection: winrm
@@ -109,6 +88,7 @@
     ansible_winrm_transport: basic
     ansible_winrm_server_cert_validation: ignore
   register: script_result
+  delegate_to: win-builder
 
 # ===========================================================
 # MOSTRAR RESULTADO DE EJECUCIÓN
