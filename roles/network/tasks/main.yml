@@ -69,13 +69,15 @@
     Write-Host "Usuario: {{ vcd.user }}"
     Write-Host "OrgVdc: {{ vcd.orgVdcName }}"
     Write-Host "EdgeName: {{ edgeGatewayName }}"
+    Write-Host "AccessToken: {{vcd.access_token}}"
     powershell.exe -ExecutionPolicy Bypass -File "D:\Users\Jeferson Diaz\Documents\g6\Ansible\networkedge.ps1" `
       -Server "{{ vcd.host }}" `
       -Username "{{ vcd.user }}" `
       -Password "{{ vcd.password }}" `
       -OrgVdcName "{{ vcd.orgVdcName }}" `
       -EdgeName "{{ edgeGatewayName }}" `
-      -ExternalNetworkName "{{ externalNetworkName }}"
+      -ExternalNetworkName "{{ externalNetworkName }}" `
+      -AccessToken: {{vcd.access_token}}
 
   vars:
     ansible_connection: winrm
