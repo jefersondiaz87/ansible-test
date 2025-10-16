@@ -90,6 +90,20 @@
   register: script_result
   delegate_to: win-builder
 
+- name: Extraer EDGE_ID y UPLINK_INFO desde stdout
+  ansible.builtin.set_fact:
+    edge_id: "{{ script_result.stdout_lines | select('search', '^EDGE_ID=') | map('regex_replace', '^EDGE_ID=', '') | first }}"
+    uplink_info_raw: "{{ script_result.stdout_lines | select('search', '^UPLINK_INFO=') | map('regex_replace', '^UPLINK_INFO=', '') | first }}"
+  when: script_result.stdout_lines is defined
+
+- name: Separar UPLINK_INFO en variables individuales
+  ansible.builtin.set_fact:
+    uplink_name: "{{ uplink_info_raw.split(';')[0] }}"
+    gateway: "{{ uplink_info_raw.split(';')[1] }}"
+    start_ip: "{{ uplink_info_raw.split(';')[2] }}"
+    end_ip: "{{ uplink_info_raw.split(';')[3] }}"
+  when: uplink_info_raw is defined  
+
 # ===========================================================
 # MOSTRAR RESULTADO DE EJECUCIÓN
 # ===========================================================
