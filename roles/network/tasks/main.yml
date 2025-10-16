@@ -53,7 +53,7 @@
       - "📡 Servidor VCD: {{ vcd.host }}"
       - "👤 Usuario: {{ vcd.user }}"
       - "🏗️  Org VDC: {{ vcd.orgVdcName }}"
-      - "🏗️  EdgeName: {{ network_match.name }}"
+      - "🏗️  EdgeName: {{ edgeGatewayName }}"
       - "📝 Descripción: Organización {{ vcd.orgFullName }} - creado por AWX"
   delegate_to: localhost
   connection: local
@@ -67,7 +67,7 @@
     Write-Host "Servidor: {{ vcd.host }}"
     Write-Host "Usuario: {{ vcd.user }}"
     Write-Host "OrgVdc: {{ vcd.orgVdcName }}"
-    Write-Host "EdgeName: {{ network_match.name }}"
+    Write-Host "EdgeName: {{ edgeGatewayName }}"
     Write-Host "Script: C:\Users\jeferson.diaz\Documents\WindowsPowerShell\Scripts\edgegateway.ps1"
 
     powershell.exe -ExecutionPolicy Bypass -File "C:\Users\jeferson.diaz\Documents\WindowsPowerShell\Scripts\network.ps1" `
@@ -75,7 +75,7 @@
       -Username "{{ vcd.user }}" `
       -Password "{{ vcd.password }}" `
       -OrgVdcName "{{ vcd.orgVdcName }}" `
-      -EdgeName "{{ network_match.name }}" `
+      -EdgeName "{{ edgeGatewayName }}" `
       -$Type = "{{ vcd.networkType }}" `
       -ExternalNetworkName "{{ vcd.orgVdcName.split('-')[0] }}"
   register: edge_create_result
