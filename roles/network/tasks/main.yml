@@ -99,9 +99,8 @@
       -EdgeName "{{ network_match.name }}" `
       -$Type = "{{ vcd.networkType }}" `
       -Description "Network Edge {{ vcd.orgFullName }} - creado por AWX"
-      
+
   vars:
-    hostvcd: "{{vcd.host}}"
     ansible_connection: winrm
     ansible_host: "100.66.2.151"
     ansible_port: 5985
