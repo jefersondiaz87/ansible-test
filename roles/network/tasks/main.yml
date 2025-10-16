@@ -54,6 +54,7 @@
       - "👤 Usuario: {{ vcd.user }}"
       - "🏗️  Org VDC: {{ vcd.orgVdcName }}"
       - "🏗️  EdgeName: {{ edgeGatewayName }}"
+      - "🏗️  externalNetworkName: {{ externalNetworkName }}"
       - "📝 Descripción: Organización {{ vcd.orgFullName }} - creado por AWX"
   delegate_to: localhost
   connection: local
@@ -74,7 +75,7 @@
       -Password "{{ vcd.password }}" `
       -OrgVdcName "{{ vcd.orgVdcName }}" `
       -EdgeName "{{ edgeGatewayName }}" `
-      -ExternalNetworkName "{{ vcd.orgVdcName.split('-')[0] }}"
+      -ExternalNetworkName "{{ externalNetworkName }}"
 
   vars:
     ansible_connection: winrm
