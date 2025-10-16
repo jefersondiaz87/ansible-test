@@ -74,7 +74,6 @@
       -Password "{{ vcd.password }}" `
       -OrgVdcName "{{ vcd.orgVdcName }}" `
       -EdgeName "{{ edgeGatewayName }}" `
-      -Type "{{ vcd.networkType }}" `
       -ExternalNetworkName "{{ vcd.orgVdcName.split('-')[0] }}"
 
   vars:
