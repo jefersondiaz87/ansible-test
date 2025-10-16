@@ -126,7 +126,6 @@
     msg: "❌ No se pudo extraer EDGE_ID desde la salida del script PowerCLI."
   when: edge_id == ''
 
-
 - name: Ejecutar script PowerCLI para crear red ruteada (CreateOrgVdcRouteNet)
   ansible.builtin.win_shell: |
     Write-Host "=== Iniciando creación de red ruteada ==="
@@ -149,7 +148,7 @@
       -Gateway "{{ gateway }}" `
       -StartIP "{{ start_ip }}" `
       -EndIP "{{ end_ip }}"
-      -AccessToken: "{{vcd.access_token}}"
+      -AccessToken "{{vcd.access_token}}"
 
   vars:
     ansible_connection: winrm
@@ -167,4 +166,3 @@
     msg:
       - "✅ Red ruteada creada correctamente"
       - "{{ routed_net_result.stdout_lines }}"
-  
