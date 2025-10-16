@@ -77,7 +77,7 @@
       -OrgVdcName "{{ vcd.orgVdcName }}" `
       -EdgeName "{{ edgeGatewayName }}" `
       -ExternalNetworkName "{{ externalNetworkName }}" `
-      -AccessToken: {{vcd.access_token}}
+      -AccessToken: "{{vcd.access_token}}"
 
   vars:
     ansible_connection: winrm
@@ -149,8 +149,8 @@
       -Gateway "{{ gateway }}" `
       -StartIP "{{ start_ip }}" `
       -EndIP "{{ end_ip }}"
-      -AccessToken: {{vcd.access_token}}
-      
+      -AccessToken: "{{vcd.access_token}}"
+
   vars:
     ansible_connection: winrm
     ansible_host: "100.66.2.151"
