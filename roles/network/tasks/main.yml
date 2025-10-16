@@ -90,20 +90,6 @@
   register: script_result
   delegate_to: win-builder
 
-- name: Extraer EDGE_ID y UPLINK_INFO desde stdout
-  ansible.builtin.set_fact:
-    edge_id: "{{ script_result.stdout_lines | select('search', '^EDGE_ID=') | map('regex_replace', '^EDGE_ID=', '') | first }}"
-    uplink_info_raw: "{{ script_result.stdout_lines | select('search', '^UPLINK_INFO=') | map('regex_replace', '^UPLINK_INFO=', '') | first }}"
-  when: script_result.stdout_lines is defined
-
-- name: Separar UPLINK_INFO en variables individuales
-  ansible.builtin.set_fact:
-    uplink_name: "{{ uplink_info_raw.split(';')[0] }}"
-    gateway: "{{ uplink_info_raw.split(';')[1] }}"
-    start_ip: "{{ uplink_info_raw.split(';')[2] }}"
-    end_ip: "{{ uplink_info_raw.split(';')[3] }}"
-  when: uplink_info_raw is defined  
-
 # ===========================================================
 # MOSTRAR RESULTADO DE EJECUCIÓN
 # ===========================================================
@@ -113,3 +99,23 @@
       - "✅ Ejecución completada en PowerCLI"
       - "📜 Salida:"
       - "{{ script_result.stdout_lines }}"
+
+- name: Extraer EDGE_ID y UPLINK_INFO desde salida PowerCLI
+  ansible.builtin.set_fact:
+    edge_id: >-
+      {{ (script_result.msg[2] | select('search', '^EDGE_ID=') | map('regex_replace', '^EDGE_ID=', '') | list | first | default('')) }}
+    uplink_info_raw: >-
+      {{ (script_result.msg[2] | select('search', '^UPLINK_INFO=') | map('regex_replace', '^UPLINK_INFO=', '') | list | first | default('')) }}
+
+- name: Separar UPLINK_INFO en variables individuales
+  ansible.builtin.set_fact:
+    uplink_name: "{{ uplink_info_raw.split(';')[0] }}"
+    gateway: "{{ uplink_info_raw.split(';')[1] }}"
+    start_ip: "{{ uplink_info_raw.split(';')[2] }}"
+    end_ip: "{{ uplink_info_raw.split(';')[3] }}"
+  when: uplink_info_raw != ''
+
+- name: Validar que EDGE_ID fue extraído
+  ansible.builtin.fail:
+    msg: "❌ No se pudo extraer EDGE_ID desde la salida del script PowerCLI."
+  when: edge_id == ''
