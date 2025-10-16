@@ -103,9 +103,15 @@
 - name: Extraer EDGE_ID y UPLINK_INFO desde salida PowerCLI
   ansible.builtin.set_fact:
     edge_id: >-
-      {{ (script_result.msg[2] | select('search', '^EDGE_ID=') | map('regex_replace', '^EDGE_ID=', '') | list | first | default('')) }}
+      {{ (script_result.stdout_lines | select('search', '^EDGE_ID=') | map('regex_replace', '^EDGE_ID=', '') | list | first | default('')) }}
     uplink_info_raw: >-
-      {{ (script_result.msg[2] | select('search', '^UPLINK_INFO=') | map('regex_replace', '^UPLINK_INFO=', '') | list | first | default('')) }}
+      {{ (script_result.stdout_lines | select('search', '^UPLINK_INFO=') | map('regex_replace', '^UPLINK_INFO=', '') | list | first | default('')) }}
+
+- name: Mostrar EDGE_ID y UPLINK_INFO extraídos
+  ansible.builtin.debug:
+    msg:
+      - "EDGE_ID: {{ edge_id }}"
+      - "UPLINK_INFO: {{ uplink_info_raw }}"
 
 - name: Separar UPLINK_INFO en variables individuales
   ansible.builtin.set_fact:
@@ -119,3 +125,37 @@
   ansible.builtin.fail:
     msg: "❌ No se pudo extraer EDGE_ID desde la salida del script PowerCLI."
   when: edge_id == ''
+
+
+- name: Ejecutar script PowerCLI para crear red ruteada (CreateOrgVdcRouteNet)
+  ansible.builtin.win_shell: |
+    Write-Host "=== Iniciando creación de red ruteada ==="
+    Write-Host "Servidor: {{ vcd.host }}"
+    Write-Host "Usuario: {{ vcd.user }}"
+    Write-Host "OrgVdc: {{ vcd.orgVdcName }}"
+    Write-Host "EdgeId: {{ edge_id }}"
+    Write-Host "NetworkName: {{ uplink_name }}"
+    Write-Host "Gateway: {{ gateway }}"
+    Write-Host "StartIP: {{ start_ip }}"
+    Write-Host "EndIP: {{ end_ip }}"
+    Write-Host "AccessToken: {{vcd.access_token}}"
+    powershell.exe -ExecutionPolicy Bypass -File "D:\Users\Jeferson Diaz\Documents\g6\Ansible\networkNet.ps1" `
+      -Server "{{ vcd.host }}" `
+      -Username "{{ vcd.user }}" `
+      -Password "{{ vcd.password }}" `
+      -OrgVdcName "{{ vcd.orgVdcName }}" `
+      -EdgeId "{{ edge_id }}" `
+      -NetworkName "{{ uplink_name }}" `
+      -Gateway "{{ gateway }}" `
+      -StartIP "{{ start_ip }}" `
+      -EndIP "{{ end_ip }}"
+      -AccessToken: {{vcd.access_token}}
+  register: routed_net_result
+  delegate_to: win-builder
+
+- name: Mostrar resultado de creación de red ruteada
+  ansible.builtin.debug:
+    msg:
+      - "✅ Red ruteada creada correctamente"
+      - "{{ routed_net_result.stdout_lines }}"
+  
