@@ -68,9 +68,7 @@
     Write-Host "Usuario: {{ vcd.user }}"
     Write-Host "OrgVdc: {{ vcd.orgVdcName }}"
     Write-Host "EdgeName: {{ edgeGatewayName }}"
-    Write-Host "Script: C:\Users\jeferson.diaz\Documents\WindowsPowerShell\Scripts\edgegateway.ps1"
-
-    powershell.exe -ExecutionPolicy Bypass -File "C:\Users\jeferson.diaz\Documents\WindowsPowerShell\Scripts\network.ps1" `
+    powershell.exe -ExecutionPolicy Bypass -File "D:\Users\Jeferson Diaz\Documents\g6\Ansible\network.ps1" `
       -Server "{{ vcd.host }}" `
       -Username "{{ vcd.user }}" `
       -Password "{{ vcd.password }}" `
