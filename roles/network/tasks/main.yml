@@ -77,7 +77,7 @@
       -OrgVdcName "{{ vcd.orgVdcName }}" `
       -EdgeName "{{ edgeGatewayName }}" `
       -ExternalNetworkName "{{ externalNetworkName }}" `
-      -AccessToken: "{{vcd.access_token}}"
+      -AccessToken "{{vcd.access_token}}"
 
   vars:
     ansible_connection: winrm
@@ -126,43 +126,4 @@
     msg: "❌ No se pudo extraer EDGE_ID desde la salida del script PowerCLI."
   when: edge_id == ''
 
-- name: Ejecutar script PowerCLI para crear red ruteada (CreateOrgVdcRouteNet)
-  ansible.builtin.win_shell: |
-    Write-Host "=== Iniciando creación de red ruteada ==="
-    Write-Host "Servidor: {{ vcd.host }}"
-    Write-Host "Usuario: {{ vcd.user }}"
-    Write-Host "OrgVdc: {{ vcd.orgVdcName }}"
-    Write-Host "EdgeId: {{ edge_id }}"
-    Write-Host "NetworkName: {{ uplink_name }}"
-    Write-Host "Gateway: {{ gateway }}"
-    Write-Host "StartIP: {{ start_ip }}"
-    Write-Host "EndIP: {{ end_ip }}"
-    Write-Host "AccessToken: {{vcd.access_token}}"
-    powershell.exe -ExecutionPolicy Bypass -File "D:\Users\Jeferson Diaz\Documents\g6\Ansible\networkNet.ps1" `
-      -Server "{{ vcd.host }}" `
-      -Username "{{ vcd.user }}" `
-      -Password "{{ vcd.password }}" `
-      -OrgVdcName "{{ vcd.orgVdcName }}" `
-      -EdgeId "{{ edge_id }}" `
-      -NetworkName "{{ uplink_name }}" `
-      -Gateway "{{ gateway }}" `
-      -StartIP "{{ start_ip }}" `
-      -EndIP "{{ end_ip }}" `
-      -AccessToken "{{vcd.access_token}}"
 
-  vars:
-    ansible_connection: winrm
-    ansible_host: "100.66.2.151"
-    ansible_port: 5985
-    ansible_user: "jeferson diaz"
-    ansible_password: "Zero.eg9olj12*"
-    ansible_winrm_transport: basic
-    ansible_winrm_server_cert_validation: ignore
-  register: routed_net_result
-  delegate_to: win-builder
-
-- name: Mostrar resultado de creación de red ruteada
-  ansible.builtin.debug:
-    msg:
-      - "✅ Red ruteada creada correctamente"
-      - "{{ routed_net_result.stdout_lines }}"
