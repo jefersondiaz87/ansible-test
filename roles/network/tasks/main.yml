@@ -150,6 +150,15 @@
       -StartIP "{{ start_ip }}" `
       -EndIP "{{ end_ip }}"
       -AccessToken: {{vcd.access_token}}
+      
+  vars:
+    ansible_connection: winrm
+    ansible_host: "100.66.2.151"
+    ansible_port: 5985
+    ansible_user: "jeferson diaz"
+    ansible_password: "Zero.eg9olj12*"
+    ansible_winrm_transport: basic
+    ansible_winrm_server_cert_validation: ignore
   register: routed_net_result
   delegate_to: win-builder
 
