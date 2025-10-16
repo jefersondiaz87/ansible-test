@@ -45,318 +45,78 @@
       - "🔍 Estado: {{ 'YA EXISTE ✅' if edge_exists else 'NO EXISTE 🚀 Se procederá a crear' }}"
 
 # ===========================================================
-# OBTENER ID DE LA RED EXTERNA Y SUBNETS DISPONIBLES
+# MOSTRAR VARIABLES DE ENTRADA ANTES DE PowerCLI
 # ===========================================================
-- name: Buscar red externa por nombre
-  ansible.builtin.uri:
-    url: "{{ vcd.host }}/cloudapi/1.0.0/externalNetworks?filter=name=={{ externalNetworkName }}"
-    method: GET
-    headers:
-      Authorization: "Bearer {{ vcd.access_token }}"
-      Accept: "application/json;version={{ vcd.api_version }}"
-    validate_certs: "{{ vcd.verify_ssl }}"
-  register: ext_net_lookup
-  failed_when: ext_net_lookup.status not in [200]
-
-- name: Validar red externa
-  ansible.builtin.assert:
-    that:
-      - ext_net_lookup.json.resultTotal > 0
-    fail_msg: "❌ No se encontró la red externa '{{ externalNetworkName }}'."
-
-- name: Seleccionar la primera red externa con IPs libres
-  ansible.builtin.set_fact:
-    selected_ext_net: "{{ ext_net_lookup.json['values'][0] }}"
-    extNetId: "{{ ext_net_lookup.json['values'][0]['id'] }}"
-    uplink_subnets: "{{ ext_net_lookup.json['values'][0]['subnets']['values'] }}"
-
-- name: Mostrar red externa seleccionada
+- name: Mostrar variables antes de ejecutar PowerCLI
   ansible.builtin.debug:
     msg:
-      - "🌐 Red seleccionada: {{ selected_ext_net.name }}"
-      - "💡 Gateway: {{ uplink_subnets[0].gateway }}"
-      - "📦 Total IPs: {{ uplink_subnets[0].totalIpCount }}"
-      - "🔢 Usadas: {{ uplink_subnets[0].usedIpCount }}"
+      - "📡 Servidor VCD: {{ vcd.host }}"
+      - "👤 Usuario: {{ vcd.user }}"
+      - "🏗️  Org VDC: {{ vcd.orgVdcName }}"
+      - "🏗️  EdgeName: {{ network_match.name }}"
+      - "📝 Descripción: Organización {{ vcd.orgFullName }} - creado por AWX"
+  delegate_to: localhost
+  connection: local
 
 # ===========================================================
-# OBTENER ORG VDC ID
+# 🚀 CREAR EDGE GATEWAY VIA POWERSHELL (PowerCLI 13.3)
 # ===========================================================
-- name: Obtener ID del Org VDC
-  ansible.builtin.uri:
-    url: "{{ vcd.host }}/cloudapi/1.0.0/vdcs?filter=name=={{ vcd.orgVdcName }}"
-    method: GET
-    headers:
-      Accept: "application/json;version={{ vcd.api_version }}"
-      Authorization: "Bearer {{ vcd.access_token }}"
-    validate_certs: false
-  register: vdc_check
-  failed_when: vdc_check.status not in [200]
+- name: Ejecutar script PowerCLI para crear Edge Gateway
+  ansible.builtin.win_shell: |
+    Write-Host "=== Iniciando creación de Edge Gateway (PowerCLI 13.3) ==="
+    Write-Host "Servidor: {{ vcd.host }}"
+    Write-Host "Usuario: {{ vcd.user }}"
+    Write-Host "OrgVdc: {{ vcd.orgVdcName }}"
+    Write-Host "EdgeName: {{ network_match.name }}"
+    Write-Host "Script: C:\Users\jeferson.diaz\Documents\WindowsPowerShell\Scripts\edgegateway.ps1"
 
-- name: Guardar orgVdcId
-  ansible.builtin.set_fact:
-    org_vdc_id: "{{ vdc_check.json['values'][0]['id'] }}"
-  when: vdc_check.json['values'] | length > 0
-
-# ===========================================================
-# VALIDAR ESTADO DEL ORG VDC (Debe estar ENABLED)
-# ===========================================================
-- name: Consultar estado del Org VDC
-  ansible.builtin.uri:
-    url: "{{ vcd.host }}/cloudapi/1.0.0/vdcs/{{ org_vdc_id }}"
-    method: GET
-    headers:
-      Accept: "application/json;version={{ vcd.api_version }}"
-      Authorization: "Bearer {{ vcd.access_token }}"
-    validate_certs: "{{ vcd.verify_ssl }}"
-  register: orgvdc_status
-  failed_when: orgvdc_status.status not in [200]
-
-- name: Detectar estado del Org VDC
-  ansible.builtin.set_fact:
-    orgvdc_state: "{{ 'ENABLED' if 'id' in orgvdc_status.json else 'UNKNOWN' }}"
-
-- name: Validar que el Org VDC está habilitado
-  ansible.builtin.assert:
-    that:
-      - orgvdc_state == 'ENABLED'
-    fail_msg: "❌ El Org VDC '{{ vcd.orgVdcName }}' no está habilitado."
-    success_msg: "✅ El Org VDC '{{ vcd.orgVdcName }}' está habilitado."
+    powershell.exe -ExecutionPolicy Bypass -File "C:\Users\jeferson.diaz\Documents\WindowsPowerShell\Scripts\network.ps1" `
+      -Server "{{ vcd.host }}" `
+      -Username "{{ vcd.user }}" `
+      -Password "{{ vcd.password }}" `
+      -OrgVdcName "{{ vcd.orgVdcName }}" `
+      -EdgeName "{{ network_match.name }}" `
+      -$Type = "{{ vcd.networkType }}" `
+      -ExternalNetworkName "{{ vcd.orgVdcName.split('-')[0] }}"
+  register: edge_create_result
+  delegate_to: win-builder
 
 # ===========================================================
-# CREAR EDGE GATEWAY SIN IPs (LÓGICA VRO)
+# 4️⃣ Ejecutar script PowerCLI remoto con log
 # ===========================================================
-- name: Limpiar ipRanges antes de crear el Edge
-  ansible.builtin.set_fact:
-    clean_subnets: "{{ uplink_subnets | map('combine', {'ipRanges': {'values': []}}) | list }}"
+- name: Ejecutar PowerCLI en Windows
+  ansible.builtin.win_shell: |
+    Write-Host "=== Iniciando ejecucion PowerCLI ==="
+    Write-Host "Servidor: {{ vcd.host }}"
+    Write-Host "Usuario: {{ vcd.user }}"
+    Write-Host "OrgName: {{ vcd.orgFullName }}"
+    Write-Host "EdgeName: {{ network_match.name }}"
+    powershell.exe -ExecutionPolicy Bypass -File "D:\Users\Jeferson Diaz\Documents\g6\Ansible\network.ps1" `
+      -Server "{{ vcd.host }}" `
+      -Username "{{ vcd.user }}" `
+      -Password "{{ vcd.password }}" `
+      -VdcName "{{ vcd.orgVdcName }}" `
+      -EdgeName "{{ network_match.name }}" `
+      -$Type = "{{ vcd.networkType }}" `
+      -Description "Network Edge {{ vcd.orgFullName }} - creado por AWX"
 
-- name: Construir payload del Edge Gateway (sin IPs)
-  ansible.builtin.set_fact:
-    edge_payload:
-      name: "{{ edgeGatewayName }}"
-      description: "Edge Gateway creado automáticamente por Ansible REST"
-      orgVdc:
-        id: "{{ org_vdc_id }}"
-      edgeGatewayUplinks:
-        - uplinkId: "{{ extNetId }}"
-          dedicated: "{{ 'false' if vcd.networkType == 'IO' else 'true' }}"
-          subnets:
-            values: "{{ clean_subnets }}"
-
-- name: Crear Edge Gateway vía CloudAPI (sin IPs)
-  when: not edge_exists
-  ansible.builtin.uri:
-    url: "{{ vcd.host }}/cloudapi/1.0.0/edgeGateways"
-    method: POST
-    headers:
-      Accept: "application/json;version={{ vcd.api_version }}"
-      Authorization: "Bearer {{ vcd.access_token }}"
-      Content-Type: "application/json"
-    body_format: json
-    body: "{{ edge_payload }}"
-    validate_certs: false
-  register: edge_create
-  failed_when: edge_create.status not in [200,201,202]
-
-- name: Obtener URN del Edge Gateway creado
-  ansible.builtin.uri:
-    url: "{{ vcd.host }}/cloudapi/1.0.0/edgeGateways?filter=name=={{ edgeGatewayName }}"
-    method: GET
-    headers:
-      Accept: "application/json;version={{ vcd.api_version }}"
-      Authorization: "Bearer {{ vcd.access_token }}"
-    validate_certs: false
-  register: edge_query
-
-- name: Guardar URN del Edge
-  ansible.builtin.set_fact:
-    edge_urn: "{{ edge_query.json['values'][0]['id'] if (edge_query.json['values'] | length > 0) else '' }}"
-
-## ===========================================================
-# ASIGNAR IPs POST-CREACIÓN (CloudAPI 1.0.0)
-# ===========================================================
-
-# -----------------------------------------------------------
-# Obtener IPs disponibles desde la External Network
-# -----------------------------------------------------------
-- name: Obtener IPs disponibles del External Network
-  when: edge_urn != ''
-  ansible.builtin.uri:
-    url: "{{ vcd.host }}/cloudapi/1.0.0/externalNetworks/{{ extNetId }}/availableIpAddresses"
-    method: GET
-    headers:
-      Accept: "application/json;version={{ vcd.api_version }}"
-      Authorization: "Bearer {{ vcd.access_token }}"
-    validate_certs: false
-  register: available_ips
-  failed_when: available_ips.status not in [200]
-
-- name: Mostrar IPs disponibles detectadas
-  when: edge_urn != ''
-  ansible.builtin.debug:
-    msg: "📬 IPs disponibles: {{ available_ips.json['values'] }}"
-
-# -----------------------------------------------------------
-# Seleccionar las IPs a usar
-# -----------------------------------------------------------
-- name: Definir cantidad de IPs a usar
-  ansible.builtin.set_fact:
-    ip_allocate_count: "{{ vcd.edgeIpAllocationCount | default(5) }}"
-
-- name: Seleccionar primeras IPs libres
-  ansible.builtin.set_fact:
-    selected_ips: "{{ available_ips.json['values'][:(ip_allocate_count | int)] }}"
-  when: available_ips.json['values'] | length > 0
-
-- name: Validar que se encontraron IPs suficientes
-  ansible.builtin.assert:
-    that:
-      - selected_ips | length > 0
-    fail_msg: "❌ No hay IPs libres disponibles en la red externa '{{ externalNetworkName }}'."
-    success_msg: "✅ Se encontraron IPs libres para asignar al Edge."
-
-# -----------------------------------------------------------
-# Construir estructura de subnets con IPs seleccionadas (corregido)
-# -----------------------------------------------------------
-- name: Construir estructura de subnets con IPs seleccionadas (formato CloudAPI válido)
-  ansible.builtin.set_fact:
-    edge_subnets:
-      - gateway: "{{ uplink_subnets[0].gateway }}"
-        prefixLength: "{{ uplink_subnets[0].prefixLength }}"
-        ipRanges:
-          values:
-            - startAddress: "{{ selected_ips[0].ipAddress if (selected_ips[0] is mapping and 'ipAddress' in selected_ips[0]) else selected_ips[0] }}"
-              endAddress: "{{ selected_ips[-1].ipAddress if (selected_ips[-1] is mapping and 'ipAddress' in selected_ips[-1]) else selected_ips[-1] }}"
-
-- name: Mostrar subnets finales a aplicar
-  ansible.builtin.debug:
-    msg: "{{ edge_subnets | to_nice_json }}"
-
-- name: Normalizar subnets antes del PUT
-  ansible.builtin.set_fact:
-    edge_subnets_clean: >-
-      {{
-        edge_subnets
-        | map('combine', {
-            'ipRanges': {
-              'values': [
-                {
-                  'startAddress': item.ipRanges['values'][0].startAddress.ipRanges['values'][0].startAddress,
-                  'endAddress': item.ipRanges['values'][0].startAddress.ipRanges['values'][0].endAddress
-                }
-              ]
-            }
-          })
-        | list
-      }}
-  loop: "{{ edge_subnets }}"
-  loop_control:
-    loop_var: item
-
-- name: Mostrar estructura final limpia
-  ansible.builtin.debug:
-    msg: "{{ edge_subnets_clean | to_nice_json }}"
-
-# -----------------------------------------------------------
-# Obtener configuración actual del Edge Gateway
-# -----------------------------------------------------------
-- name: Obtener configuración actual del Edge Gateway
-  ansible.builtin.uri:
-    url: "{{ vcd.host }}/cloudapi/1.0.0/edgeGateways/{{ edge_urn }}"
-    method: GET
-    headers:
-      Accept: "application/json;version={{ vcd.api_version }}"
-      Authorization: "Bearer {{ vcd.access_token }}"
-    validate_certs: false
-  register: edge_current
-  failed_when: edge_current.status not in [200]
-
-## -----------------------------------------------------------
-# Normalizar subnets limpias (ya con IPs planas)
-# -----------------------------------------------------------
-- name: Limpiar estructura de subnets para CloudAPI
-  ansible.builtin.set_fact:
-    edge_subnets_clean:
-      - gateway: "{{ uplink_subnets[0].gateway }}"
-        prefixLength: "{{ uplink_subnets[0].prefixLength }}"
-        ipRanges:
-          values:
-            - startAddress: "{{ selected_ips[0] }}"
-              endAddress: "{{ selected_ips[-1] }}"
-
-- name: Mostrar subnets finales limpias
-  ansible.builtin.debug:
-    msg: "{{ edge_subnets_clean | to_nice_json }}"
-
-
-# -----------------------------------------------------------
-# Enviar actualización al Edge Gateway
-# -----------------------------------------------------------
-- name: Actualizar Edge con IPs válidas
-  ansible.builtin.uri:
-    url: "{{ vcd.host }}/cloudapi/1.0.0/edgeGateways/{{ edge_urn }}"
-    method: PUT
-    headers:
-      Accept: "application/json;version={{ vcd.api_version }}"
-      Authorization: "Bearer {{ vcd.access_token }}"
-      Content-Type: "application/json"
-    body_format: json
-    body:
-      name: "{{ edgeGatewayName }}"
-      description: "Edge Gateway actualizado automáticamente por Ansible REST"
-      edgeGatewayUplinks:
-        - uplinkId: "{{ extNetId }}"
-          dedicated: "{{ 'false' if vcd.networkType == 'IO' else 'true' }}"
-          subnets:
-            values: "{{ edge_subnets_clean }}"
-    validate_certs: false
-  register: edge_update
-  failed_when: edge_update.status not in [200,201,202]
-
-- name: Confirmar resultado del PUT
-  ansible.builtin.debug:
-    msg: "✅ Edge actualizado correctamente: {{ edge_update.status }}"
-    
-# -----------------------------------------------------------
-# 🔧 Limpiar estructura del subnet
-# -----------------------------------------------------------
-- name: Limpiar estructura de subnets para CloudAPI
-  ansible.builtin.set_fact:
-    edge_subnets_clean:
-      - gateway: "{{ uplink_subnets[0].gateway }}"
-        prefixLength: "{{ uplink_subnets[0].prefixLength }}"
-        ipRanges:
-          values:
-            - startAddress: "{{ available_ips.json['values'][0] }}"
-              endAddress: "{{ available_ips.json['values'][-1] }}"
+  vars:
+    hostvcd: "{{vcd.host}}"
+    ansible_connection: winrm
+    ansible_host: "100.66.2.151"
+    ansible_port: 5985
+    ansible_user: "jeferson diaz"
+    ansible_password: "Zero.eg9olj12*"
+    ansible_winrm_transport: basic
+    ansible_winrm_server_cert_validation: ignore
+  register: script_result
 
 # ===========================================================
-# ACTUALIZAR EDGE GATEWAY CON LAS IPs SELECCIONADAS
+# MOSTRAR RESULTADO DE EJECUCIÓN
 # ===========================================================
-- name: Actualizar Edge Gateway con IPs seleccionadas
-  when: edge_urn != ''
-  ansible.builtin.uri:
-    url: "{{ vcd.host }}/cloudapi/1.0.0/edgeGateways/{{ edge_urn }}"
-    method: PUT
-    headers:
-      Accept: "application/json;version={{ vcd.api_version }}"
-      Authorization: "Bearer {{ vcd.access_token }}"
-      Content-Type: "application/json"
-    body_format: json
-    body:
-      edgeGatewayUplinks:
-        - uplinkId: "{{ extNetId }}"
-          dedicated: "{{ 'false' if vcd.networkType == 'IO' else 'true' }}"
-          subnets:
-            values: "{{ edge_subnets_clean }}"
-    validate_certs: false
-  register: edge_update
-  failed_when: edge_update.status not in [200,201,202]
-
-
-- name: Confirmar actualización del Edge
-  when: edge_update is defined
+- name: Mostrar resultado del script PowerCLI
   ansible.builtin.debug:
     msg:
-      - "✅ Edge Gateway actualizado correctamente con IPs seleccionadas."
-      - "📡 Edge ID: {{ edge_urn }}"
-      - "🌐 Subnets aplicadas: {{ edge_subnets | to_nice_json }}"
+      - "✅ Ejecución completada en PowerCLI"
+      - "📜 Salida:"
+      - "{{ script_result.stdout_lines }}"
