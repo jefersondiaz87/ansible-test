@@ -82,7 +82,7 @@
       -EdgeName "{{ edgeGatewayName }}" `
       -ExternalNetworkName "{{ externalNetworkName }}" `
       -AccessToken "{{vcd.access_token}}" `
-      -RoutedNetworkName: "{{RoutedNetworkName}}"
+      -RoutedNetworkName "{{RoutedNetworkName}}"
 
   vars:
     ansible_connection: winrm
@@ -130,5 +130,3 @@
   ansible.builtin.fail:
     msg: "❌ No se pudo extraer EDGE_ID desde la salida del script PowerCLI."
   when: edge_id == ''
-
-
