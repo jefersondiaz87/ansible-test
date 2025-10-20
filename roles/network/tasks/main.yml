@@ -9,6 +9,7 @@
   ansible.builtin.set_fact:
     locationPrefix: "{{ vcd.orgVdcName.split('-')[0] }}"
     edgeGatewayName: "{{ vcd.orgVdcName.split('-')[0] }}-{{ vcd.orgFullName }}-{{ vcd.networkType }}"
+    RoutedNetworkName: "{{ vcd.orgVdcName.split('-')[0] }}-{{ vcd.orgFullName }}-NET01"
     externalNetworkName: "{{ vcd.orgVdcName.split('-')[0] }}-{{ vcd.networkType }}-01"
   delegate_to: localhost
 
@@ -55,6 +56,7 @@
       - "🏗️  Org VDC: {{ vcd.orgVdcName }}"
       - "🏗️  EdgeName: {{ edgeGatewayName }}"
       - "🏗️  externalNetworkName: {{ externalNetworkName }}"
+      - "🏗️  RoutedNetworkName: {{ RoutedNetworkName }}"
       - "📝 Descripción: Organización {{ vcd.orgFullName }} - creado por AWX"
   delegate_to: localhost
   connection: local
@@ -70,6 +72,8 @@
     Write-Host "OrgVdc: {{ vcd.orgVdcName }}"
     Write-Host "EdgeName: {{ edgeGatewayName }}"
     Write-Host "AccessToken: {{vcd.access_token}}"
+    Write-Host "externalNetworkName: {{externalNetworkName}}"
+    Write-Host "RoutedNetworkName: {{RoutedNetworkName}}"
     powershell.exe -ExecutionPolicy Bypass -File "D:\Users\Jeferson Diaz\Documents\g6\Ansible\networkedge.ps1" `
       -Server "{{ vcd.host }}" `
       -Username "{{ vcd.user }}" `
@@ -77,7 +81,8 @@
       -OrgVdcName "{{ vcd.orgVdcName }}" `
       -EdgeName "{{ edgeGatewayName }}" `
       -ExternalNetworkName "{{ externalNetworkName }}" `
-      -AccessToken "{{vcd.access_token}}"
+      -AccessToken "{{vcd.access_token}}" `
+      -RoutedNetworkName: "{{RoutedNetworkName}}"
 
   vars:
     ansible_connection: winrm
