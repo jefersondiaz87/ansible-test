@@ -93,6 +93,7 @@
     ansible_winrm_transport: basic
     ansible_winrm_server_cert_validation: ignore
   register: script_result
+  failed_when: script_result.rc != 0 or '"success":false' in script_result.stdout
   delegate_to: win-builder
 
 # ===========================================================
