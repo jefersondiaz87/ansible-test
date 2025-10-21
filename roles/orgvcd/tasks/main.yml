@@ -155,7 +155,7 @@
   connection: local
 
 # ===========================================================
-# BÚSQUEDA Y CÁLCULO DE COMPUTE POLICY (FIX DE SERIALIZACIÓN)
+# BÚSQUEDA Y CÁLCULO DE COMPUTE POLICY (CORRECCIÓN DE TIPO)
 # ===========================================================
 - name: Obtener Compute Policy por nombre
   ansible.builtin.uri:
@@ -170,26 +170,10 @@
   delegate_to: localhost
   connection: local
 
-- name: Buscar Placement Policy asociada al PVDC y seleccionarla (CORREGIDO - V4: Asegura tipo Dict)
+- name: Buscar Placement Policy asociada al PVDC y seleccionarla (CORREGIDO - V5: Simplificación de Tipo)
   ansible.builtin.set_fact:
-    # Usamos trim para eliminar cualquier espacio/newline no deseado y from_json para forzar el tipo diccionario.
-    compute_match: "{{ match_result | trim | from_json }}"
-  vars:
-    # Utilizamos >- para evitar un salto de línea al final y to_json para garantizar una entrada limpia a from_json.
-    match_result: >-
-      {% set first_match = (
-          compute_policy_check.json['values']
-          | selectattr('isSizingOnly', 'equalto', false) 
-          | selectattr('pvdcId', 'equalto', provider_match.id) 
-          | list 
-          | first
-        )
-      %}
-      {% if first_match %}
-      {{ {'name': first_match.name, 'id': first_match.id} | to_json }}
-      {% else %}
-      {{ {} | to_json }}
-      {% endif %}
+    # Solución de una línea para evitar errores de YAML: Busca la política y, si no se encuentra, usa un diccionario vacío.
+    compute_match: "{{ compute_policy_check.json.values | selectattr('isSizingOnly', 'equalto', false) | selectattr('pvdcId', 'equalto', provider_match.id) | list | first | default({}) }}"
   when: compute_policy_check.json['values'] is defined and (compute_policy_check.json['values'] | length > 0)
   delegate_to: localhost
   connection: local
@@ -258,15 +242,6 @@
   connection: local
 
 # ===========================================================
-# LIMPIAR VARIABLES ANTES DE PASAR A PowerCLI
-# ===========================================================
-- name: Limpiar nombres de políticas y componentes para PowerCLI
-  ansible.builtin.set_fact:
-    cp_name_clean: "{{ compute_match.name | trim | default('') }}"
-  delegate_to: localhost
-  connection: local
-
-# ===========================================================
 # MOSTRAR VARIABLES DE ENTRADA ANTES DE PowerCLI (ROBUSTO)
 # ===========================================================
 - name: Mostrar variables antes de ejecutar PowerCLI
@@ -294,7 +269,7 @@
 # ===========================================================
 - name: Ejecutar PowerCLI en Windows
   ansible.builtin.win_shell: >
-    powershell.exe -ExecutionPolicy Bypass -File "D:\Users\Jeferson Diaz\Documents\g6\Ansible\orgvcd.ps1" -AllocationModel "{{allocation_model}}" -Server "{{ vcd.host }}" -Username "{{ vcd.user }}" -Password "{{ vcd.password }}" -OrgName "{{ vcd.orgFullName }}" -VdcName "{{ vcd.orgVdcName }}" -ProvName "{{ provider_match.name | default('') }}" -CpName "{{ cp_name_clean }}" -SpName "{{ storage_match.name | default('') }}" -NpName "{{ network_match.name | default('') }}" -CpuAllocation {{ vcd.cpuQuota }} -MemoryAllocation {{ vcd.memoryQuota }} -StorageAllocation {{ vcd.storageQuota }} -Description "Organización {{ vcd.orgFullName }} - creado por AWX"
+    powershell.exe -ExecutionPolicy Bypass -File "D:\Users\Jeferson Diaz\Documents\g6\Ansible\orgvcd.ps1" -AllocationModel "{{allocation_model}}" -Server "{{ vcd.host }}" -Username "{{ vcd.user }}" -Password "{{ vcd.password }}" -OrgName "{{ vcd.orgFullName }}" -VdcName "{{ vcd.orgVdcName }}" -ProvName "{{ provider_match.name | default('') }}" -CpName "{{ compute_match.name | default('') }}" -SpName "{{ storage_match.name | default('') }}" -NpName "{{ network_match.name | default('') }}" -CpuAllocation {{ vcd.cpuQuota }} -MemoryAllocation {{ vcd.memoryQuota }} -StorageAllocation {{ vcd.storageQuota }} -Description "Organización {{ vcd.orgFullName }} - creado por AWX"
   vars:
     hostvcd: "{{vcd.host}}"
     ansible_connection: winrm
