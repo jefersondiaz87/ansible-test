@@ -176,7 +176,7 @@
     compute_match: "{{ match_result | to_json | from_json }}"
   vars:
     # Usamos un var temporal para calcular el resultado (dict o {})
-    match_result: >
+    match_result: >-
       {% set first_match = (
           compute_policy_check.json['values']
           | selectattr('isSizingOnly', 'equalto', false) 
@@ -185,7 +185,7 @@
           | first
         )
       %}
-      {{{'name': first_match.name, 'id': first_match.id} if first_match else {}}}
+      {{{'name': first_match.name, 'id': first_match.id} if first_match | length > 0 else {}}}
   when: compute_policy_check.json['values'] is defined and (compute_policy_check.json['values'] | length > 0)
   delegate_to: localhost
   connection: local
@@ -261,7 +261,6 @@
     cp_name_clean: "{{ compute_match.name | trim | default('') }}"
   delegate_to: localhost
   connection: local
-
 
 # ===========================================================
 # MOSTRAR VARIABLES DE ENTRADA ANTES DE PowerCLI (ROBUSTO)
