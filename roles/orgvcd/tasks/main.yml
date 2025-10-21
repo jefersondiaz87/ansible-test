@@ -154,16 +154,6 @@
   delegate_to: localhost
   connection: local
 
-# ===========================================================
-# CALCULAR NOMBRE DE LA COMPUTE POLICY
-# ===========================================================
-- name: Establecer el nombre esperado de la Compute Policy
-  # Asunción: La Compute Policy inicial/por defecto usa el prefijo regional más un sufijo estándar.
-  # Ejemplo: Si locationPrefix es DOSDQ01P, la política se llama DOSDQ01P-PLACEMENT
-  ansible.builtin.set_fact:
-    vcd_computePolicyName: "{{ locationPrefix | upper }}-PLACEMENT" # <-- Aquí se 'calcula' el nombre esperado
-  delegate_to: localhost
-  connection: local
 
 # ===========================================================
 # BÚSQUEDA Y CÁLCULO DE COMPUTE POLICY
@@ -171,7 +161,7 @@
 - name: Obtener Compute Policy por nombre
   ansible.builtin.uri:
     # URL actualizada para usar la variable 'calculada'
-    url: "{{ vcd.host }}/cloudapi/1.0.0/computePolicies?filter=name=={{ vcd_computePolicyName }}"
+    url: "{{ vcd.host }}/cloudapi/2.0.0/vdcComputePolicies"
     method: GET
     headers:
       Accept: "application/json;version={{ vcd.api_version }}"
@@ -182,22 +172,33 @@
   delegate_to: localhost
   connection: local
 
-- name: Extraer ID y Name de la Compute Policy
+- name: Buscar Placement Policy que comience con '{{ locationPrefix }}'
   ansible.builtin.set_fact:
     compute_match: >-
       {%
         set c = (
           compute_policy_check.json['values']
+          # Filtramos políticas que NO son Sizing (Placement Policies son isSizingPolicy == false), 
+          # luego filtramos por el prefijo, tal como el script de vRO.
+          | selectattr('isSizingPolicy', 'equalto', false) 
+          | selectattr('name', 'search', '^' ~ locationPrefix)
           | list
         )
-      %}{{ {'name': c[0].name, 'id': c[0].id} if c | length > 0 else {} }}
-  when: compute_policy_check.json['values'] | length > 0
+      %}
+      {% if c | length == 1 %}
+        {{ {'name': c[0].name, 'id': c[0].id} }}
+      {% elif c | length > 1 %}
+        {% set _ = ansible.builtin.fail(msg="❌ Error: Se encontró más de una Placement Policy que comienza con '" ~ locationPrefix ~ "'.") %}
+      {% else %}
+        {}
+      {% endif %}
+  when: compute_policy_check.json['values'] is defined and (compute_policy_check.json['values'] | length > 0)
   delegate_to: localhost
   connection: local
 
-- name: Validar Compute Policy encontrada
+- name: Validar Placement Policy encontrada
   ansible.builtin.fail:
-    msg: "❌ No se encontró la Compute Policy con nombre '{{ vcd_computePolicyName }}'. Verifique si existe y si la convención de nombres es correcta."
+    msg: "❌ No se encontró la Placement Policy que comienza con '{{ locationPrefix }}' en el endpoint /2.0.0/vdcComputePolicies."
   when: compute_match == {}
   delegate_to: localhost
   connection: local
