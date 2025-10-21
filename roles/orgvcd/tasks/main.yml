@@ -170,11 +170,12 @@
   delegate_to: localhost
   connection: local
 
-- name: Buscar Placement Policy asociada al PVDC y seleccionarla (CORREGIDO - Garantiza Dict)
+- name: Buscar Placement Policy asociada al PVDC y seleccionarla (CORREGIDO - Garantiza Dict y Tipo)
   ansible.builtin.set_fact:
-    compute_match: "{{ match_result }}"
+    # Fuerza la conversión a JSON y luego de vuelta a un objeto, resolviendo problemas de serialización de tipo string.
+    compute_match: "{{ match_result | to_json | from_json }}"
   vars:
-    # Usamos un var temporal para calcular el resultado y evitar problemas de serialización de set_fact >-
+    # Usamos un var temporal para calcular el resultado (dict o {})
     match_result: >
       {% set first_match = (
           compute_policy_check.json['values']
