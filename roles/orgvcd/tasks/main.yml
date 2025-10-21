@@ -154,7 +154,6 @@
   delegate_to: localhost
   connection: local
 
-
 # ===========================================================
 # BÚSQUEDA Y CÁLCULO DE COMPUTE POLICY
 # ===========================================================
@@ -178,8 +177,6 @@
       {%
         set c = (
           compute_policy_check.json['values']
-          # Filtramos políticas que NO son Sizing (Placement Policies son isSizingPolicy == false), 
-          # luego filtramos por el prefijo, tal como el script de vRO.
           | selectattr('isSizingPolicy', 'equalto', false) 
           | selectattr('name', 'search', '^' ~ locationPrefix)
           | list
