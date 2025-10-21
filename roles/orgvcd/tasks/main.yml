@@ -202,7 +202,7 @@
 - name: Mostrar componentes detectados
   ansible.builtin.debug:
     msg:
-      # Acceso directo al nombre; si falla (lo que ya no debería), fallamos al default
+      # Uso de | default para evitar fallas si una variable *_match es {}
       - "✅ Provider VDC: {{ provider_match.name | default('No definido') }} ({{ provider_match.id | default('No definido') }})"
       - "✅ Network Pool: {{ network_match.name | default('No definido') }} ({{ network_match.id | default('No definido') }})"
       - "✅ Storage Profile: {{ storage_match.name | default('No definido') }} ({{ storage_match.id | default('No definido') }})"
@@ -276,11 +276,11 @@
   connection: local
 
 # ===========================================================
-# 4️⃣ Ejecutar script PowerCLI remoto con log (AJUSTADO PARA ACCESO DIRECTO)
+# 4️⃣ Ejecutar script PowerCLI remoto con log (AÑADIDO | default('') para robustez)
 # ===========================================================
 - name: Ejecutar PowerCLI en Windows
   ansible.builtin.win_shell: >
-    powershell.exe -ExecutionPolicy Bypass -File "D:\Users\Jeferson Diaz\Documents\g6\Ansible\orgvcd.ps1" -AllocationModel "{{allocation_model}}" -Server "{{ vcd.host }}" -Username "{{ vcd.user }}" -Password "{{ vcd.password }}" -OrgName "{{ vcd.orgFullName }}" -VdcName "{{ vcd.orgVdcName }}" -ProvName "{{ provider_match.name }}" -CpName "{{ compute_match.name }}" -SpName "{{ storage_match.name }}" -NpName "{{ network_match.name }}" -CpuAllocation {{ vcd.cpuQuota }} -MemoryAllocation {{ vcd.memoryQuota }} -StorageAllocation {{ vcd.storageQuota }} -Description "Organización {{ vcd.orgFullName }} - creado por AWX"
+    powershell.exe -ExecutionPolicy Bypass -File "D:\Users\Jeferson Diaz\Documents\g6\Ansible\orgvcd.ps1" -AllocationModel "{{allocation_model}}" -Server "{{ vcd.host }}" -Username "{{ vcd.user }}" -Password "{{ vcd.password }}" -OrgName "{{ vcd.orgFullName }}" -VdcName "{{ vcd.orgVdcName }}" -ProvName "{{ provider_match.name | default('') }}" -CpName "{{ compute_match.name | default('') }}" -SpName "{{ storage_match.name | default('') }}" -NpName "{{ network_match.name | default('') }}" -CpuAllocation {{ vcd.cpuQuota }} -MemoryAllocation {{ vcd.memoryQuota }} -StorageAllocation {{ vcd.storageQuota }} -Description "Organización {{ vcd.orgFullName }} - creado por AWX"
   vars:
     hostvcd: "{{vcd.host}}"
     ansible_connection: winrm
