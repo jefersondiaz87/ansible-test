@@ -155,6 +155,54 @@
   connection: local
 
 # ===========================================================
+# CALCULAR NOMBRE DE LA COMPUTE POLICY
+# ===========================================================
+- name: Establecer el nombre esperado de la Compute Policy
+  # Asunción: La Compute Policy inicial/por defecto usa el prefijo regional más un sufijo estándar.
+  # Ejemplo: Si locationPrefix es DOSDQ01P, la política se llama DOSDQ01P-PLACEMENT
+  ansible.builtin.set_fact:
+    vcd_computePolicyName: "{{ locationPrefix | upper }}-PLACEMENT" # <-- Aquí se 'calcula' el nombre esperado
+  delegate_to: localhost
+  connection: local
+
+# ===========================================================
+# BÚSQUEDA Y CÁLCULO DE COMPUTE POLICY
+# ===========================================================
+- name: Obtener Compute Policy por nombre
+  ansible.builtin.uri:
+    # URL actualizada para usar la variable 'calculada'
+    url: "{{ vcd.host }}/cloudapi/1.0.0/computePolicies?filter=name=={{ vcd_computePolicyName }}"
+    method: GET
+    headers:
+      Accept: "application/json;version={{ vcd.api_version }}"
+      Authorization: "Bearer {{ vcd.access_token }}"
+    return_content: yes
+    validate_certs: false
+  register: compute_policy_check
+  delegate_to: localhost
+  connection: local
+
+- name: Extraer ID y Name de la Compute Policy
+  ansible.builtin.set_fact:
+    compute_match: >-
+      {%
+        set c = (
+          compute_policy_check.json['values']
+          | list
+        )
+      %}{{ {'name': c[0].name, 'id': c[0].id} if c | length > 0 else {} }}
+  when: compute_policy_check.json['values'] | length > 0
+  delegate_to: localhost
+  connection: local
+
+- name: Validar Compute Policy encontrada
+  ansible.builtin.fail:
+    msg: "❌ No se encontró la Compute Policy con nombre '{{ vcd_computePolicyName }}'. Verifique si existe y si la convención de nombres es correcta."
+  when: compute_match == {}
+  delegate_to: localhost
+  connection: local
+
+# ===========================================================
 # MOSTRAR RESULTADOS DE COMPONENTES DETECTADOS
 # ===========================================================
 - name: Mostrar componentes detectados
@@ -163,6 +211,7 @@
       - "✅ Provider VDC: {{ provider_match.name }} ({{ provider_match.id }})"
       - "✅ Network Pool: {{ network_match.name }} ({{ network_match.id }})"
       - "✅ Storage Profile: {{ storage_match.name }} ({{ storage_match.id }})"
+      - "✅ Compute Policy: {{ compute_match.name }} ({{ compute_match.id }})" # LÍNEA AÑADIDA
   delegate_to: localhost
   connection: local
 
@@ -246,6 +295,7 @@
       -OrgName "{{ vcd.orgFullName }}" `
       -VdcName "{{ vcd.orgVdcName }}" `
       -ProvName "{{ provider_match.name }}" `
+      -CpName "{{ compute_match.name }}" `
       -SpName "{{ storage_match.name }}" `
       -NpName "{{ network_match.name }}" `
       -CpuAllocation {{ vcd.cpuQuota }} `
