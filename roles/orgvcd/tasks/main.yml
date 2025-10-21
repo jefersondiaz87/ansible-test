@@ -295,7 +295,7 @@
       -OrgName "{{ vcd.orgFullName }}" `
       -VdcName "{{ vcd.orgVdcName }}" `
       -ProvName "{{ provider_match.name | default('') }}" `
-      -CpName "{{ compute_match.name | default('') }}" `
+      -ComputePolicyName "{{ compute_match.name | default('') }}" ` # <-- Parámetro actualizado a nombre más descriptivo
       -SpName "{{ storage_match.name | default('') }}" `
       -NpName "{{ network_match.name | default('') }}" `
       -CpuAllocation {{ vcd.cpuQuota }} `
