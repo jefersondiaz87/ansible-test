@@ -221,7 +221,7 @@
 # ===========================================================
 # 4. EJECUCIÓN PRINCIPAL (PowerCLI)
 # ===========================================================
-- name: Ejecutar PowerCLI en Windows (Crea el Org VDC)
+- name: Ejecutar PowerCLI en Windows (Crea el Org VDC y aplica Metadatos)
   ansible.builtin.win_shell: >
     powershell.exe -ExecutionPolicy Bypass -File "D:\Users\Jeferson Diaz\Documents\g6\Ansible\orgvcd.ps1"
     -AllocationModel "{{allocation_model}}"
@@ -238,6 +238,7 @@
     -MemoryAllocation {{ vcd.memoryQuota }}
     -StorageAllocation {{ vcd.storageQuota }}
     -Description "Organización {{ vcd.orgFullName }} - creado por AWX"
+    -IsTrialMode "{{ vcd.trial | bool }}" # <--- NUEVO PARÁMETRO MANDATORIO
   vars:
     # Estas vars de conexión son necesarias aquí si el rol no las define globalmente.
     ansible_connection: winrm
@@ -250,7 +251,7 @@
   register: script_result
 
 # ===========================================================
-# 5. APLICAR METADATOS DE "TRIAL MODE" (vApp API - Fallback)
+# 5. EXTRACCIÓN DEL ID DEL VDC (Metadatos aplicados en PowerCLI)
 # ===========================================================
 - name: Extraer ID del Org VDC recién creado o existente
   ansible.builtin.set_fact:
@@ -267,46 +268,9 @@
   delegate_to: localhost
   connection: local
 
-- name: Extraer UUID del VDC para API vApp
-  ansible.builtin.set_fact:
-    # Divide la URN por ':' y toma el último elemento (el UUID)
-    vdc_uuid: "{{ created_vdc_id | split(':') | last }}"
-  when: created_vdc_id is defined and created_vdc_id != ''
-  delegate_to: localhost
-  connection: local
-
-- name: Construir Payload JSON para actualizar Metadatos
-  ansible.builtin.set_fact:
-    metadata_payload:
-      key: "isTrialMode" # Usar una clave consistente con la VRO Action original
-      typedValue:
-        _type: "MetadataBooleanValue"
-        value: "{{ vcd.trial | bool }}"
-  when: created_vdc_id is defined and created_vdc_id != '' # Ejecutar siempre que haya ID
-
-- name: Aplicar Metadato "isTrialMode" al Org VDC (vApp API POST)
-  ansible.builtin.uri:
-    # Usamos la ruta del vApp API (XML API) que usa el UUID y es más fiable para metadatos
-    url: "{{ vcd.host }}/api/vdc/{{ vdc_uuid }}/metadata"
-    method: POST
-    headers:
-      # Se requiere una versión específica y tipo MIME para la vApp API
-      Accept: "application/*+xml;version=35.0"
-      Authorization: "Bearer {{ vcd.access_token }}"
-      Content-Type: "application/vnd.vmware.vcloud.metadataItem+json;version=35.0"
-    body: "{{ metadata_payload | to_json }}"
-    body_format: json
-    status_code: 200 # El vApp API generalmente devuelve 200/201 sincrónicamente para esto
-    validate_certs: false
-  when: vdc_uuid is defined and vdc_uuid != ''
-  register: metadata_task
-  delegate_to: localhost
-  connection: local
-
-- name: Mostrar mensaje de metadato aplicado
+- name: Mostrar mensaje de confirmación de Metadatos
   ansible.builtin.debug:
-    msg: "✅ Metadato 'isTrialMode' ({{ vcd.trial | bool }}) aplicado al OrgVDC."
-  when: metadata_task is defined and (metadata_task.status == 200 or metadata_task.status == 201)
+    msg: "✅ Metadato 'isTrialMode' ({{ vcd.trial | bool }}) aplicado exitosamente por el script PowerCLI."
   delegate_to: localhost
   connection: local
 
