@@ -1,154 +1,156 @@
+---
 # ===========================================================
-# CREACIÓN DE EDGE GATEWAY (CloudAPI 1.0.0)
+# 1. PREPARACIÓN DE CONTEXTO Y NOMBRES DE RECURSOS
 # ===========================================================
-
-# -----------------------------------------------------------
-# Construir el nombre del Edge Gateway igual que en vRO
-# -----------------------------------------------------------
-- name: Construir nombre del Edge Gateway
+- name: 1.1 Construir nombres de recursos de red basados en el VDC
   ansible.builtin.set_fact:
     locationPrefix: "{{ vcd.orgVdcName.split('-')[0] }}"
     edgeGatewayName: "{{ vcd.orgVdcName.split('-')[0] }}-{{ vcd.orgFullName }}-{{ vcd.networkType }}"
     RoutedNetworkName: "{{ vcd.orgVdcName.split('-')[0] }}-{{ vcd.orgFullName }}-NET01"
-    externalNetworkName: "{{ vcd.orgVdcName.split('-')[0] }}-{{ vcd.networkType }}-01"
+    externalNetworkName: "{{ vcd.orgVdcName.split('-')[0] }}-{{ vcd.networkType }}-01" # Asumiendo un nombre estándar de red externa
   delegate_to: localhost
 
-- name: Mostrar nombre calculado del Edge Gateway
+- name: 1.2 Mostrar nombres de recursos a crear
   ansible.builtin.debug:
     msg:
       - "📍 locationPrefix: {{ locationPrefix }}"
       - "📡 Edge Gateway generado: {{ edgeGatewayName }}"
       - "🌐 External Network esperada: {{ externalNetworkName }}"
-
-# ===========================================================
-# VALIDAR SI EL EDGE GATEWAY YA EXISTE
-# ===========================================================
-- name: Validar si el Edge Gateway ya existe (CloudAPI)
-  ansible.builtin.uri:
-    url: "{{ vcd.host }}/cloudapi/1.0.0/edgeGateways?filter=name=={{ edgeGatewayName }}"
-    method: GET
-    headers:
-      Accept: "application/json;version={{ vcd.api_version }}"
-      Authorization: "Bearer {{ vcd.access_token }}"
-    validate_certs: "{{ vcd.verify_ssl }}"
-  register: edge_check
-  failed_when: edge_check.status not in [200]
-
-- name: Determinar si el Edge Gateway ya existe
-  ansible.builtin.set_fact:
-    edge_exists: "{{ ('values' in edge_check.json) and (edge_check.json['values'] | length > 0) }}"
-
-- name: Skip Edge Creation si ya existe
-  ansible.builtin.meta: end_host
-  when: edge_exists
-
-- name: Mostrar estado del Edge Gateway
-  ansible.builtin.debug:
-    msg:
-      - "💡 Edge Gateway buscado: {{ edgeGatewayName }}"
-      - "📋 Resultado: {{ (edge_check.json['values'] | length) if ('values' in edge_check.json) else 0 }}"
-      - "🔍 Estado: {{ 'YA EXISTE ✅' if edge_exists else 'NO EXISTE 🚀 Se procederá a crear' }}"
-
-# ===========================================================
-# MOSTRAR VARIABLES DE ENTRADA ANTES DE PowerCLI
-# ===========================================================
-- name: Mostrar variables antes de ejecutar PowerCLI
-  ansible.builtin.debug:
-    msg:
-      - "📡 Servidor VCD: {{ vcd.host }}"
-      - "👤 Usuario: {{ vcd.user }}"
-      - "🏗️  Org VDC: {{ vcd.orgVdcName }}"
-      - "🏗️  EdgeName: {{ edgeGatewayName }}"
-      - "🏗️  externalNetworkName: {{ externalNetworkName }}"
-      - "🏗️  RoutedNetworkName: {{ RoutedNetworkName }}"
-      - "📝 Descripción: Organización {{ vcd.orgFullName }} - creado por AWX"
+      - "🏠 Routed Network interna: {{ RoutedNetworkName }}"
   delegate_to: localhost
-  connection: local
 
 # ===========================================================
-# 🚀 CREAR EDGE GATEWAY VIA POWERSHELL (PowerCLI 13.3)
+# 2. BLOQUE PRINCIPAL DE NETWORKING CON ROLLBACK
 # ===========================================================
-- name: Ejecutar script PowerCLI para crear Edge Gateway
-  ansible.builtin.win_shell: |
-    Write-Host "=== Iniciando creación de Edge Gateway (PowerCLI 13.3) ==="
-    Write-Host "Servidor: {{ vcd.host }}"
-    Write-Host "Usuario: {{ vcd.user }}"
-    Write-Host "OrgVdc: {{ vcd.orgVdcName }}"
-    Write-Host "EdgeName: {{ edgeGatewayName }}"
-    Write-Host "AccessToken: {{vcd.access_token}}"
-    Write-Host "externalNetworkName: {{externalNetworkName}}"
-    Write-Host "RoutedNetworkName: {{RoutedNetworkName}}"
-    pwsh.exe -ExecutionPolicy Bypass -File "D:\Users\Jeferson Diaz\Documents\g6\Ansible\networkedge.ps1" `
-      -Server "{{ vcd.host }}" `
-      -Username "{{ vcd.user }}" `
-      -Password "{{ vcd.password }}" `
-      -OrgVdcName "{{ vcd.orgVdcName }}" `
-      -EdgeName "{{ edgeGatewayName }}" `
-      -ExternalNetworkName "{{ externalNetworkName }}" `
-      -AccessToken "{{vcd.access_token}}" `
-      -RoutedNetworkName "{{RoutedNetworkName}}"
+- name: 2.1 Proceso transaccional para Edge Gateway y Redes
+  block: # INICIO del bloque transaccional
 
-  vars:
-    ansible_connection: winrm
-    ansible_host: "100.66.2.151"
-    ansible_port: 5985
-    ansible_user: "jeferson diaz"
-    ansible_password: "Zero.eg9olj12*"
-    ansible_winrm_transport: basic
-    ansible_winrm_server_cert_validation: ignore
-  register: edge_result
-  failed_when: edge_result.rc != 0 or '"success":false' in edge_result.stdout
-  delegate_to: win-builder
+    # -----------------------------------------------------------
+    # TAREA 2.2: VALIDAR SI EL EDGE YA EXISTE (Lectura - No necesita Rollback)
+    # -----------------------------------------------------------
+    - name: 2.2 Verificar si el Edge Gateway ya existe (CloudAPI)
+      ansible.builtin.uri:
+        url: "{{ vcd.host }}/cloudapi/1.0.0/edgeGateways?filter=name=={{ edgeGatewayName }}"
+        method: GET
+        headers:
+          Accept: "application/json;version={{ vcd.api_version }}"
+          Authorization: "Bearer {{ vcd.access_token }}"
+        validate_certs: "{{ vcd.verify_ssl }}"
+      register: edge_check
+      failed_when: edge_check.status not in [200]
+      delegate_to: localhost
 
-# ===========================================================
-# MOSTRAR RESULTADO DE EJECUCIÓN
-# ===========================================================
-- name: Mostrar resultado del script PowerCLI
-  ansible.builtin.debug:
-    msg:
-      - "✅ Ejecución completada en PowerCLI"
-      - "📜 Salida:"
-      - "{{ edge_result.stdout_lines }}"
+    - name: 2.3 Determinar si el Edge Gateway ya existe
+      ansible.builtin.set_fact:
+        edge_exists: "{{ ('values' in edge_check.json) and (edge_check.json['values'] | length > 0) }}"
+      delegate_to: localhost
 
-- name: Extraer EDGE_ID y UPLINK_INFO desde salida PowerCLI
-  ansible.builtin.set_fact:
-    edge_id: >-
-      {{ (edge_result.stdout_lines | select('search', '^EDGE_ID=') | map('regex_replace', '^EDGE_ID=', '') | list | first | default('')) }}
-    uplink_info_raw: >-
-      {{ (edge_result.stdout_lines | select('search', '^UPLINK_INFO=') | map('regex_replace', '^UPLINK_INFO=', '') | list | first | default('')) }}
+    - name: 2.4 Mostrar estado del Edge Gateway
+      ansible.builtin.debug:
+        msg: "🔍 Estado: {{ 'YA EXISTE ✅' if edge_exists else 'NO EXISTE 🚀 Se procederá a crear' }}"
+      delegate_to: localhost
+      
+    - name: 2.5 (Opcional) Saltar la creación si Edge ya existe
+      ansible.builtin.meta: end_host
+      when: edge_exists
 
-- name: Mostrar EDGE_ID y UPLINK_INFO extraídos
-  ansible.builtin.debug:
-    msg:
-      - "EDGE_ID: {{ edge_id }}"
-      - "UPLINK_INFO: {{ uplink_info_raw }}"
+    - name: 2.6 Mostrar variables antes de ejecutar PowerCLI
+      ansible.builtin.debug:
+        msg:
+          - "📡 Servidor VCD: {{ vcd.host }}"
+          - "👤 Usuario: {{ vcd.user }}"
+          - "🏗️ Org VDC: {{ vcd.orgVdcName }}"
+          - "🏗️ EdgeName: {{ edgeGatewayName }}"
+          - "🏗️ externalNetworkName: {{ externalNetworkName }}"
+          - "🏗️ RoutedNetworkName: {{ RoutedNetworkName }}"
+          - "📝 Descripción: Organización {{ vcd.orgFullName }} - creado por AWX"
+      delegate_to: localhost
+      connection: local
 
-- name: Separar UPLINK_INFO en variables individuales
-  ansible.builtin.set_fact:
-    uplink_name: "{{ uplink_info_raw.split(';')[0] }}"
-    gateway: "{{ uplink_info_raw.split(';')[1] }}"
-    start_ip: "{{ uplink_info_raw.split(';')[2] }}"
-    end_ip: "{{ uplink_info_raw.split(';')[3] }}"
-  when: uplink_info_raw != ''
+    # -----------------------------------------------------------
+    # TAREA 2.7: CREACIÓN DEL EDGE Y RED (Punto de fallo y activación de Rollback)
+    # -----------------------------------------------------------
+    - name: 2.7 Ejecutar script PowerCLI para crear Edge Gateway y Routed Network
+      ansible.builtin.win_shell: |
+        Write-Host "=== Iniciando creación de Edge Gateway (PowerCLI 13.3) ==="
+        pwsh.exe -ExecutionPolicy Bypass -File "D:\Users\Jeferson Diaz\Documents\g6\Ansible\networkedge.ps1" `
+          -Server "{{ vcd.host }}" `
+          -Username "{{ vcd.user }}" `
+          -Password "{{ vcd.password }}" `
+          -OrgVdcName "{{ vcd.orgVdcName }}" `
+          -EdgeName "{{ edgeGatewayName }}" `
+          -ExternalNetworkName "{{ externalNetworkName }}" `
+          -AccessToken "{{vcd.access_token}}" `
+          -RoutedNetworkName "{{RoutedNetworkName}}"
+      vars:
+        ansible_connection: winrm
+        ansible_host: "100.66.2.151"
+        ansible_port: 5985
+        ansible_user: "jeferson diaz"
+        ansible_password: "Zero.eg9olj12*"
+        ansible_winrm_transport: basic
+        ansible_winrm_server_cert_validation: ignore
+      register: edge_result
+      failed_when: edge_result.rc != 0 or ('"success":false' in edge_result.stdout if edge_result.stdout else false)
+      delegate_to: win-builder
 
-- name: Validar que EDGE_ID fue extraído
-  ansible.builtin.fail:
-    msg: "❌ No se pudo extraer EDGE_ID desde la salida del script PowerCLI."
-  when: edge_id == ''
+    - name: 2.8 Extraer EDGE_ID y UPLINK_INFO desde salida PowerCLI
+      ansible.builtin.set_fact:
+        edge_id: >-
+          {{ (edge_result.stdout_lines | select('search', '^EDGE_ID=') | map('regex_replace', '^EDGE_ID=', '') | list | first | default('')) }}
+        uplink_info_raw: >-
+          {{ (edge_result.stdout_lines | select('search', '^UPLINK_INFO=') | map('regex_replace', '^UPLINK_INFO=', '') | list | first | default('')) }}
+      delegate_to: localhost
 
-# -----------------------------------------------------------
+    - name: 2.9 Validar que EDGE_ID fue extraído
+      ansible.builtin.fail:
+        msg: "❌ No se pudo extraer EDGE_ID desde la salida del script PowerCLI. Activando Rollback de Edge."
+      when: edge_id == ''
+      delegate_to: localhost
+      
+    - name: 2.10 Separar UPLINK_INFO en variables individuales
+      ansible.builtin.set_fact:
+        uplink_name: "{{ uplink_info_raw.split(';')[0] }}"
+        gateway: "{{ uplink_info_raw.split(';')[1] }}"
+        start_ip: "{{ uplink_info_raw.split(';')[2] }}"
+        end_ip: "{{ uplink_info_raw.split(';')[3] }}"
+      when: uplink_info_raw != ''
+      delegate_to: localhost
+      
+    - name: 2.11 Mostrar variables de red extraídas
+      ansible.builtin.debug:
+        msg:
+          - "✅ EDGE_ID: {{ edge_id }}"
+          - "UPLINK_INFO: {{ uplink_info_raw }}"
+          - "Gateway IP: {{ gateway | default('N/A') }}"
+      delegate_to: localhost
+
+    # -----------------------------------------------------------
+    # TAREAS ADICIONALES DE RED (Configuración de NAT, Firewall)
+    # Si estas fallan, se activará el rescue.
+    # -----------------------------------------------------------
+    - name: 2.12 Configurar reglas NAT básicas (Ejemplo - requiere script o módulo)
+      ansible.builtin.debug:
+        msg: "Configurando reglas NAT básicas en Edge '{{ edgeGatewayName }}' (Tarea Dummy)"
+      delegate_to: localhost
+      
+    - name: 2.13 Configurar reglas de Firewall por defecto (Ejemplo - requiere script o módulo)
+      ansible.builtin.debug:
+        msg: "Configurando reglas de Firewall por defecto en Edge '{{ edgeGatewayName }}' (Tarea Dummy)"
+      delegate_to: localhost
+      
+  # -----------------------------------------------------------
   # SECCIÓN DE RESCATE (ROLLBACK EDGE)
+  # Se ejecuta si cualquier tarea en el 'block' falla.
   # -----------------------------------------------------------
   rescue:
     - name: ⚠️ INICIANDO ROLLBACK EDGE ⚠️ - Eliminando Edge/Network parcial
       ansible.builtin.debug:
-        msg: "Rollback activado debido a un fallo en la creación del Edge Gateway o Red. El VDC (Bloque 1) permanecerá."
+        msg: "Rollback activado debido a un fallo en la creación de Edge Gateway o configuración de servicios."
       delegate_to: localhost
       connection: local
       
-    # Esta tarea corresponde a Network_1._.DeleteOrgVdcEdge en su esquema vRO.
-    # Necesitará crear el script 'delete_edge.ps1' que tome el VDC Name y Edge Name.
-    - name: Eliminar Edge Gateway usando PowerCLI (SI EXISTE)
+    - name: 3.1 Eliminar Edge Gateway usando PowerCLI (SI LA CREACIÓN SE INICIÓ)
       ansible.builtin.win_shell: >
         & 'D:\Users\Jeferson Diaz\Documents\g6\Ansible\delete_edge.ps1' -OrgVdcName '{{ vcd.orgVdcName }}' -EdgeName '{{ edgeGatewayName }}' -Server '{{ vcd.host }}' -Username '{{ vcd.user }}' -Password '{{ vcd.password }}'
       vars:
@@ -159,13 +161,13 @@
         ansible_password: "Zero.eg9olj12*"
         ansible_winrm_transport: basic
         ansible_winrm_server_cert_validation: ignore
-      # Solo intenta eliminar si el Edge ID fue extraído (indicando que la creación SÍ inició)
+      # Solo se ejecuta el borrado si se logró extraer el EDGE_ID, lo que indica que la creación SÍ comenzó.
       when: edge_id is defined and edge_id != ''
       ignore_errors: true
+      delegate_to: win-builder
       
-    - name: Notificar Fallo Crítico después del Rollback Edge
+    - name: 3.2 Notificar Fallo Crítico después del Rollback Edge
       ansible.builtin.fail:
-        msg: "❌ PROVISIÓN EDGE FALLIDA. Se intentó la limpieza/Rollback del Edge Gateway."
+        msg: "❌ PROVISIÓN NETWORKING FALLIDA. Se intentó la limpieza/Rollback del Edge Gateway: {{ edgeGatewayName }}"
       delegate_to: localhost
       connection: local
-
