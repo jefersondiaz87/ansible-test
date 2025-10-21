@@ -159,7 +159,6 @@
 # ===========================================================
 - name: Obtener Compute Policy por nombre
   ansible.builtin.uri:
-    # URL actualizada para usar la variable 'calculada'
     url: "{{ vcd.host }}/cloudapi/2.0.0/vdcComputePolicies"
     method: GET
     headers:
