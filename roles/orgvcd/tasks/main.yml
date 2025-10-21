@@ -170,24 +170,18 @@
   delegate_to: localhost
   connection: local
 
-- name: Buscar Placement Policy asociada al PVDC y seleccionarla (CORREGIDO)
+- name: Buscar Placement Policy asociada al PVDC y seleccionarla (REPARADO)
   ansible.builtin.set_fact:
     compute_match: >-
-      {%
-        set c = (
+      {% set first_match = (
           compute_policy_check.json['values']
           | selectattr('isSizingOnly', 'equalto', false) 
-          {# Nuevo filtro: buscar políticas asociadas al PVDC encontrado (Provider VDC ID) #}
           | selectattr('pvdcId', 'equalto', provider_match.id) 
-          | list
+          | list 
+          | first
         )
       %}
-      {% if c | length > 0 %}
-        {# Seleccionar la primera política encontrada, incluso si hay múltiples. #}
-        {{ {'name': c[0].name, 'id': c[0].id} }}
-      {% else %}
-        {}
-      {% endif %}
+      {{ {'name': first_match.name, 'id': first_match.id} if first_match else {} }}
   when: compute_policy_check.json['values'] is defined and (compute_policy_check.json['values'] | length > 0)
   delegate_to: localhost
   connection: local
