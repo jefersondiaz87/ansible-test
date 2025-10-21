@@ -238,7 +238,7 @@
     -MemoryAllocation {{ vcd.memoryQuota }}
     -StorageAllocation {{ vcd.storageQuota }}
     -Description "Organización {{ vcd.orgFullName }} - creado por AWX"
-    -IsTrialMode {{ vcd.trial | bool | ternary('$True', '$False') }} # <--- CORRECCIÓN: Se eliminan las comillas dobles para pasar $True/$False sin ser interpretado como string.
+    -IsTrialMode {{ vcd.trial | bool | ternary('1', '0') }} # <--- CORRECCIÓN FINAL: Usar 1 (True) o 0 (False) para evitar problemas de string/parser de PowerShell.
   vars:
     # Estas vars de conexión son necesarias aquí si el rol no las define globalmente.
     ansible_connection: winrm
