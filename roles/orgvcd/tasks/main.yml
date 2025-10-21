@@ -155,7 +155,7 @@
   connection: local
 
 # ===========================================================
-# BÚSQUEDA Y CÁLCULO DE COMPUTE POLICY
+# BÚSQUEDA Y CÁLCULO DE COMPUTE POLICY (CORREGIDO)
 # ===========================================================
 - name: Obtener Compute Policy por nombre
   ansible.builtin.uri:
@@ -170,22 +170,21 @@
   delegate_to: localhost
   connection: local
 
-- name: Buscar Placement Policy que comience con '{{ locationPrefix }}'
+- name: Buscar Placement Policy asociada al PVDC y seleccionarla (CORREGIDO)
   ansible.builtin.set_fact:
     compute_match: >-
       {%
         set c = (
           compute_policy_check.json['values']
           | selectattr('isSizingOnly', 'equalto', false) 
-          | selectattr('name', 'search', '^' ~ locationPrefix)
+          # Nuevo filtro: buscar políticas asociadas al PVDC encontrado (Provider VDC ID)
+          | selectattr('pvdcId', 'equalto', provider_match.id) 
           | list
         )
       %}
-      {% if c | length == 1 %}
+      {% if c | length > 0 %}
+        {# Seleccionar la primera política encontrada, incluso si hay múltiples. #}
         {{ {'name': c[0].name, 'id': c[0].id} }}
-      {% elif c | length > 1 %}
-        {# Manejar error de múltiples políticas, lo cual fallará la tarea actual #}
-        {% set _ = ansible.builtin.fail(msg="❌ Error: Se encontró más de una Placement Policy que comienza con '" ~ locationPrefix ~ "'.") %}
       {% else %}
         {}
       {% endif %}
@@ -195,7 +194,7 @@
 
 - name: Validar Placement Policy encontrada
   ansible.builtin.fail:
-    msg: "❌ No se encontró la Placement Policy que comienza con '{{ locationPrefix }}' en el endpoint /2.0.0/vdcComputePolicies."
+    msg: "❌ No se encontró ninguna Placement Policy ('isSizingOnly': false) asociada al Provider VDC '{{ provider_match.name }}' ({{ provider_match.id }})."
   when: compute_match == {}
   delegate_to: localhost
   connection: local
@@ -267,19 +266,20 @@
       - "🏢 Organización: {{ vcd.orgFullName }}"
       - "🏗️  Org VDC: {{ vcd.orgVdcName }}"
       # Uso de | default para mostrar un mensaje claro si la variable falló la validación
-      - "🌍 Provider VDC: {{ provider_match.id | default('ID no encontrado (FALLO)') }}"
-      - "💾 Storage Policy: {{ storage_match.id | default('ID no encontrado (FALLO)') }}"
-      - "🌐 Network Pool: {{ network_match.id | default('ID no encontrado (FALLO)') }}"
+      - "🌍 Provider VDC Name: {{ provider_match.name | default('No definido') }}"
+      - "💾 Storage Policy Name: {{ storage_match.name | default('No definido') }}"
+      - "🌐 Network Pool Name: {{ network_match.name | default('No definido') }}"
       - "🧠 CPU Allocation: {{ vcd.cpuQuota }}"
       - "💽 Memory Allocation: {{ vcd.memoryQuota }}"
       - "📦 Storage Allocation: {{ vcd.storageQuota }}"
       - "📝 Descripción: Organización {{ vcd.orgFullName }} - creado por AWX"
       - "AllocationModel {{allocation_model}}"
+      - "Compute Policy Name (CpName): {{ compute_match.name | default('No definido') }}"
   delegate_to: localhost
   connection: local
 
 # ===========================================================
-# 4️⃣ Ejecutar script PowerCLI remoto con log (CORREGIDO)
+# 4️⃣ Ejecutar script PowerCLI remoto con log (CORREGIDO, LÍNEA ÚNICA)
 # ===========================================================
 - name: Ejecutar PowerCLI en Windows
   ansible.builtin.win_shell: |
