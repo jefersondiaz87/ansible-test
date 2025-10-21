@@ -222,29 +222,10 @@
 # 4. EJECUCIÓN PRINCIPAL (PowerCLI)
 # ===========================================================
 - name: Ejecutar PowerCLI en Windows (Crea el Org VDC y aplica Metadatos)
+  # CORRECCIÓN DE ERROR: Se ha compactado la llamada en una sola línea lógica para el shell
+  # usando el operador de bloque '>' para evitar los errores de terminador de cadena y sintaxis.
   ansible.builtin.win_shell: >
-    powershell.exe -ExecutionPolicy Bypass -Command "& {
-      # Asignación de variable de PowerShell, usando $True o $False
-      $IsTrialModeValue = ${{ vcd.trial | bool | ternary('$True', '$False') }};
-
-      # Ejecución del script. Usamos ; para separar la asignación y la ejecución en una sola línea lógica.
-      & 'D:\Users\Jeferson Diaz\Documents\g6\Ansible\orgvcd.ps1'
-      -AllocationModel '{{allocation_model}}'
-      -Server '{{ vcd.host }}'
-      -Username '{{ vcd.user }}'
-      -Password '{{ vcd.password }}'
-      -OrgName '{{ vcd.orgFullName }}'
-      -VdcName '{{ vcd.orgVdcName }}'
-      -ProvName '{{ provider_match.name | default('') }}'
-      -CpName '{{ compute_match.name | default('') }}'
-      -SpName '{{ storage_match.name | default('') }}'
-      -NpName '{{ network_match.name | default('') }}'
-      -CpuAllocation {{ vcd.cpuQuota }}'
-      -MemoryAllocation {{ vcd.memoryQuota }}'
-      -StorageAllocation {{ vcd.storageQuota }}'
-      -Description 'Organización {{ vcd.orgFullName }} - creado por AWX'
-      -IsTrialMode $IsTrialModeValue
-    }"
+    powershell.exe -ExecutionPolicy Bypass -Command "& { $IsTrialModeValue = ${{ vcd.trial | bool | ternary('$True', '$False') }}; & 'D:\Users\Jeferson Diaz\Documents\g6\Ansible\orgvcd.ps1' -AllocationModel '{{allocation_model}}' -Server '{{ vcd.host }}' -Username '{{ vcd.user }}' -Password '{{ vcd.password }}' -OrgName '{{ vcd.orgFullName }}' -VdcName '{{ vcd.orgVdcName }}' -ProvName '{{ provider_match.name | default('') }}' -CpName '{{ compute_match.name | default('') }}' -SpName '{{ storage_match.name | default('') }}' -NpName '{{ network_match.name | default('') }}' -CpuAllocation {{ vcd.cpuQuota }} -MemoryAllocation {{ vcd.memoryQuota }} -StorageAllocation {{ vcd.storageQuota }} -Description 'Organización {{ vcd.orgFullName }} - creado por AWX' -IsTrialMode $IsTrialModeValue }"
   vars:
     # Estas vars de conexión son necesarias aquí si el rol no las define globalmente.
     ansible_connection: winrm
@@ -261,8 +242,7 @@
 # ===========================================================
 - name: Extraer ID del Org VDC recién creado o existente
   ansible.builtin.set_fact:
-    # CORRECCIÓN DE ERROR: Usamos un filtro de lista (| list) para asegurar que 'first' devuelve un valor definido o 'default('')' antes de intentar 'split'.
-    # También encapsulamos la primera parte para forzar la evaluación segura del 'first'.
+    # Esta lógica es robusta. Debería funcionar una vez que la tarea 4 tenga una salida estándar válida.
     created_vdc_id: >-
       {{ ((script_result.stdout_lines | select('match', '^VDC_ID_CREATED:') | list) | first) | default('') | split(':') | last | default('') | trim }}
   delegate_to: localhost
