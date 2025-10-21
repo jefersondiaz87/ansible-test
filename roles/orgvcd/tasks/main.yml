@@ -222,10 +222,11 @@
 # 4. EJECUCIÓN PRINCIPAL (PowerCLI)
 # ===========================================================
 - name: Ejecutar PowerCLI en Windows (Crea el Org VDC y aplica Metadatos)
-  # CORRECCIÓN DE ERROR: Se ha compactado la llamada en una sola línea lógica para el shell
-  # usando el operador de bloque '>' para evitar los errores de terminador de cadena y sintaxis.
+  # CORRECCIÓN DE ERROR: Se eliminaron las dobles llaves (${{...}}) y el $ extra para que la interpolación de Jinja2 sea limpia
+  # y se resuelva directamente a "$True" o "$False", evitando el error de sintaxis del '='.
+  # Se agregó 'trim' para asegurar que los valores numéricos no tengan espacios.
   ansible.builtin.win_shell: >
-    powershell.exe -ExecutionPolicy Bypass -Command "& { $IsTrialModeValue = ${{ vcd.trial | bool | ternary('$True', '$False') }}; & 'D:\Users\Jeferson Diaz\Documents\g6\Ansible\orgvcd.ps1' -AllocationModel '{{allocation_model}}' -Server '{{ vcd.host }}' -Username '{{ vcd.user }}' -Password '{{ vcd.password }}' -OrgName '{{ vcd.orgFullName }}' -VdcName '{{ vcd.orgVdcName }}' -ProvName '{{ provider_match.name | default('') }}' -CpName '{{ compute_match.name | default('') }}' -SpName '{{ storage_match.name | default('') }}' -NpName '{{ network_match.name | default('') }}' -CpuAllocation {{ vcd.cpuQuota }} -MemoryAllocation {{ vcd.memoryQuota }} -StorageAllocation {{ vcd.storageQuota }} -Description 'Organización {{ vcd.orgFullName }} - creado por AWX' -IsTrialMode $IsTrialModeValue }"
+    powershell.exe -ExecutionPolicy Bypass -Command "& { $IsTrialModeValue = {{ vcd.trial | bool | ternary('$True', '$False') }}; & 'D:\Users\Jeferson Diaz\Documents\g6\Ansible\orgvcd.ps1' -AllocationModel '{{allocation_model | trim}}' -Server '{{ vcd.host }}' -Username '{{ vcd.user }}' -Password '{{ vcd.password }}' -OrgName '{{ vcd.orgFullName }}' -VdcName '{{ vcd.orgVdcName }}' -ProvName '{{ provider_match.name | default('') }}' -CpName '{{ compute_match.name | default('') }}' -SpName '{{ storage_match.name | default('') }}' -NpName '{{ network_match.name | default('') }}' -CpuAllocation {{ vcd.cpuQuota | trim }} -MemoryAllocation {{ vcd.memoryQuota | trim }} -StorageAllocation {{ vcd.storageQuota | trim }} -Description 'Organización {{ vcd.orgFullName }} - creado por AWX' -IsTrialMode $IsTrialModeValue }"
   vars:
     # Estas vars de conexión son necesarias aquí si el rol no las define globalmente.
     ansible_connection: winrm
