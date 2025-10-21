@@ -223,29 +223,7 @@
 # ===========================================================
 - name: Ejecutar PowerCLI en Windows (Crea el Org VDC y aplica Metadatos)
   ansible.builtin.win_shell: >
-    powershell.exe -ExecutionPolicy Bypass -Command "& {
-      # 1. Definir el valor booleano en una variable de PowerShell, forzando la conversión explícita.
-      # Usamos el valor numérico (0 o 1) para evitar problemas de quotes.
-      $IsTrialModeValue = [bool]({{ vcd.trial | bool | ternary('1', '0') }});
-
-      # 2. Ejecutar el script y pasar la variable de PowerShell
-      & 'D:\Users\Jeferson Diaz\Documents\g6\Ansible\orgvcd.ps1'
-      -AllocationModel '{{allocation_model}}'
-      -Server '{{ vcd.host }}'
-      -Username '{{ vcd.user }}'
-      -Password '{{ vcd.password }}'
-      -OrgName '{{ vcd.orgFullName }}'
-      -VdcName '{{ vcd.orgVdcName }}'
-      -ProvName '{{ provider_match.name | default('') }}'
-      -CpName '{{ compute_match.name | default('') }}'
-      -SpName '{{ storage_match.name | default('') }}'
-      -NpName '{{ network_match.name | default('') }}'
-      -CpuAllocation {{ vcd.cpuQuota }}
-      -MemoryAllocation {{ vcd.memoryQuota }}
-      -StorageAllocation {{ vcd.storageQuota }}
-      -Description 'Organización {{ vcd.orgFullName }} - creado por AWX'
-      -IsTrialMode $IsTrialModeValue # <-- Se pasa la variable de PowerShell, ya tipada correctamente.
-    }"
+    powershell.exe -ExecutionPolicy Bypass -Command "& { $IsTrialModeValue = [bool]({{ vcd.trial | bool | ternary('1', '0') }}); & 'D:\Users\Jeferson Diaz\Documents\g6\Ansible\orgvcd.ps1' -AllocationModel '{{allocation_model}}' -Server '{{ vcd.host }}' -Username '{{ vcd.user }}' -Password '{{ vcd.password }}' -OrgName '{{ vcd.orgFullName }}' -VdcName '{{ vcd.orgVdcName }}' -ProvName '{{ provider_match.name | default('') }}' -CpName '{{ compute_match.name | default('') }}' -SpName '{{ storage_match.name | default('') }}' -NpName '{{ network_match.name | default('') }}' -CpuAllocation {{ vcd.cpuQuota }} -MemoryAllocation {{ vcd.memoryQuota }} -StorageAllocation {{ vcd.storageQuota }} -Description 'Organización {{ vcd.orgFullName }} - creado por AWX' -IsTrialMode $IsTrialModeValue }"
   vars:
     # Estas vars de conexión son necesarias aquí si el rol no las define globalmente.
     ansible_connection: winrm
