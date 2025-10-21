@@ -223,7 +223,7 @@
 # (Corresponde a Stage 1: Create Organization)
 # -----------------------------------------------------------
 - name: Proceso principal de aprovisionamiento de VDC con Rollback
-  ansible.builtin.block:
+  block:
     # ===========================================================
     # 4. EJECUCIÓN PRINCIPAL (PowerCLI - CREACIÓN Y METADATOS)
     # ===========================================================
