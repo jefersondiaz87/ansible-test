@@ -259,9 +259,6 @@
 - name: Limpiar nombres de políticas y componentes para PowerCLI
   ansible.builtin.set_fact:
     cp_name_clean: "{{ compute_match.name | trim | default('') }}"
-    sp_name_clean: "{{ storage_match.name | trim | default('') }}"
-    np_name_clean: "{{ network_match.name | trim | default('') }}"
-    prov_name_clean: "{{ provider_match.name | trim | default('') }}"
   delegate_to: localhost
   connection: local
 
