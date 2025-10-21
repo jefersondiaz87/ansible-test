@@ -12,20 +12,30 @@
       displayName: "{{ vcd.orgFullName }}"
       isEnabled: true
       description: "Organización creada automáticamente por Ansible"
-    status_code: [200, 201, 409] # 409 si ya existe
+    # Aceptamos 400 para poder analizar su contenido en failed_when
+    status_code: [200, 201, 409, 400] 
     validate_certs: "{{ vcd.verify_ssl }}"
   register: org_create
-  changed_when: org_create.status == 201
   failed_when:
-    - org_create.status not in [200, 201, 409]
+    - org_create.status == 400 and org_create.json.minorErrorCode != 'DUPLICATE_NAME'
+    # Fallo
+    - org_create.status >= 500
+  changed_when: org_create.status == 201
+
+
+- name: "⚙️ Establecer si la organización ya existía (Idempotencia)"
+  ansible.builtin.set_fact:
+    org_existed: >
+      {{ (org_create.status == 409) or 
+         (org_create.status == 400 and org_create.json.minorErrorCode == 'DUPLICATE_NAME') }}
 
 - name: "🔍 Mostrar resultado de creación de la organización"
-  debug:
+  ansible.builtin.debug:
     msg: >
       {% if org_create.status == 201 %}
         ✅ Organización '{{ vcd.orgFullName }}' creada correctamente.
-      {% elif org_create.status == 409 %}
-        ⚠️ La organización '{{ vcd.orgFullName }}' ya existe.
+      {% elif org_existed %}
+        ⚠️ La organización '{{ vcd.orgFullName }}' ya existe (Idempotente).
       {% else %}
-        ❌ Error al crear la organización: {{ org_create }}
+        ❌ Error inesperado al crear la organización: {{ org_create }}
       {% endif %}
