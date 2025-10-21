@@ -65,7 +65,7 @@
           | selectattr('name', 'search', '^' ~ locationPrefix)
           | list
         )
-      %}{{ {'name': p[0].name, 'id': p[0].id} if p | length > 0 else {} }}
+      %}{{ {'name': p[0].name, 'id': p[0].id} if p | length == 1 else {} }}
   when: provider_check.json['values'] is defined and (provider_check.json['values'] | length > 0)
   delegate_to: localhost
   connection: local
@@ -102,7 +102,7 @@
           | selectattr('name', 'search', '^' ~ locationPrefix)
           | list
         )
-      %}{{ {'name': n[0].name, 'id': n[0].id} if n | length > 0 else {} }}
+      %}{{ {'name': n[0].name, 'id': n[0].id} if n | length == 1 else {} }}
   when: network_check.json['values'] | length > 0
   delegate_to: localhost
   connection: local
@@ -184,6 +184,7 @@
       {% if c | length == 1 %}
         {{ {'name': c[0].name, 'id': c[0].id} }}
       {% elif c | length > 1 %}
+        {# Manejar error de múltiples políticas, lo cual fallará la tarea actual #}
         {% set _ = ansible.builtin.fail(msg="❌ Error: Se encontró más de una Placement Policy que comienza con '" ~ locationPrefix ~ "'.") %}
       {% else %}
         {}
@@ -200,15 +201,16 @@
   connection: local
 
 # ===========================================================
-# MOSTRAR RESULTADOS DE COMPONENTES DETECTADOS
+# MOSTRAR RESULTADOS DE COMPONENTES DETECTADOS (ROBUSTO)
 # ===========================================================
 - name: Mostrar componentes detectados
   ansible.builtin.debug:
     msg:
-      - "✅ Provider VDC: {{ provider_match.name }} ({{ provider_match.id }})"
-      - "✅ Network Pool: {{ network_match.name }} ({{ network_match.id }})"
-      - "✅ Storage Profile: {{ storage_match.name }} ({{ storage_match.id }})"
-      - "✅ Compute Policy: {{ compute_match.name }} ({{ compute_match.id }})" # LÍNEA AÑADIDA
+      # Uso de | default para evitar fallas si una variable *_match es {}
+      - "✅ Provider VDC: {{ provider_match.name | default('No definido') }} ({{ provider_match.id | default('No definido') }})"
+      - "✅ Network Pool: {{ network_match.name | default('No definido') }} ({{ network_match.id | default('No definido') }})"
+      - "✅ Storage Profile: {{ storage_match.name | default('No definido') }} ({{ storage_match.id | default('No definido') }})"
+      - "✅ Compute Policy: {{ compute_match.name | default('No definido') }} ({{ compute_match.id | default('No definido') }})"
   delegate_to: localhost
   connection: local
 
@@ -255,7 +257,7 @@
   connection: local
 
 # ===========================================================
-# MOSTRAR VARIABLES DE ENTRADA ANTES DE PowerCLI
+# MOSTRAR VARIABLES DE ENTRADA ANTES DE PowerCLI (ROBUSTO)
 # ===========================================================
 - name: Mostrar variables antes de ejecutar PowerCLI
   ansible.builtin.debug:
@@ -263,10 +265,11 @@
       - "📡 Servidor VCD: {{ vcd.host }}"
       - "👤 Usuario: {{ vcd.user }}"
       - "🏢 Organización: {{ vcd.orgFullName }}"
-      - "🏗️  Org VDC: {{ vcd.orgVdcName }}"
-      - "🌍 Provider VDC: {{ provider_match.id | default('No definido') }}"
-      - "💾 Storage Policy: {{ storage_match.id | default('No definido') }}"
-      - "🌐 Network Pool: {{ network_match.id | default('No definido') }}"
+      - "🏗️  Org VDC: {{ vcd.orgVdcName }}"
+      # Uso de | default para mostrar un mensaje claro si la variable falló la validación
+      - "🌍 Provider VDC: {{ provider_match.id | default('ID no encontrado (FALLO)') }}"
+      - "💾 Storage Policy: {{ storage_match.id | default('ID no encontrado (FALLO)') }}"
+      - "🌐 Network Pool: {{ network_match.id | default('ID no encontrado (FALLO)') }}"
       - "🧠 CPU Allocation: {{ vcd.cpuQuota }}"
       - "💽 Memory Allocation: {{ vcd.memoryQuota }}"
       - "📦 Storage Allocation: {{ vcd.storageQuota }}"
