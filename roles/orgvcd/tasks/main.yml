@@ -1,20 +1,20 @@
-# ===========================================================
-# CREACIÓN DE ORG VDC - CloudAPI + PowerCLI
-# ===========================================================
+---
+- name: Proceso Completo de Creación de Org VDC y Aplicación de Metadatos
+  # Nota: El host debe ser la máquina Windows donde se ejecutará PowerCLI.
+  # Las tareas que usan 'delegate_to: localhost' se ejecutan en el Execution Node de AWX
+  hosts: vcd_winrm_node
+  gather_facts: false
 
 # ===========================================================
-# EXTRAER PREFIJO DEL ORG VDC
+# 1. EXTRACCIÓN Y VALIDACIÓN PRELIMINAR (CloudAPI)
 # ===========================================================
-- name: Extraer prefijo del Org VDC
+- name: Extraer prefijo del Org VDC para búsqueda regional
   ansible.builtin.set_fact:
     locationPrefix: "{{ vcd.orgVdcName.split('-')[0] }}"
   delegate_to: localhost
   connection: local
 
-# ===========================================================
-# VALIDAR ORGANIZACIÓN EXISTENTE
-# ===========================================================
-- name: Obtener ID de la organización
+- name: Obtener ID de la organización (CloudAPI)
   ansible.builtin.uri:
     url: "{{ vcd.host }}/cloudapi/1.0.0/orgs?filter=name=={{ vcd.orgFullName }}"
     method: GET
@@ -41,9 +41,9 @@
   connection: local
 
 # ===========================================================
-# RESOLVER COMPONENTES NECESARIOS
+# 2. RESOLVER COMPONENTES NECESARIOS (Provider VDC, Network, Storage, Compute)
 # ===========================================================
-- name: Obtener todos los Provider VDCs
+- name: Obtener todos los Provider VDCs (CloudAPI)
   ansible.builtin.uri:
     url: "{{ vcd.host }}/cloudapi/1.0.0/providerVdcs"
     method: GET
@@ -77,10 +77,7 @@
   delegate_to: localhost
   connection: local
 
-# ===========================================================
-# NETWORK POOL asociado al NSX Manager del Provider
-# ===========================================================
-- name: Obtener todos los Network Pools
+- name: Obtener todos los Network Pools (CloudAPI)
   ansible.builtin.uri:
     url: "{{ vcd.host }}/cloudapi/1.0.0/networkPools/networkPoolSummaries"
     method: GET
@@ -98,9 +95,9 @@
     network_match: >-
       {%
         set n = (
-          network_check.json['values']
-          | selectattr('name', 'search', '^' ~ locationPrefix)
-          | list
+        network_check.json['values']
+        | selectattr('name', 'search', '^' ~ locationPrefix)
+        | list
         )
       %}{{ {'name': n[0].name, 'id': n[0].id} if n | length == 1 else {} }}
   when: network_check.json['values'] | length > 0
@@ -115,10 +112,7 @@
   delegate_to: localhost
   connection: local
 
-# ===========================================================
-# STORAGE PROFILE asociado al Provider VDC
-# ===========================================================
-- name: Obtener todos los Storage Profiles (Policies)
+- name: Obtener todos los Storage Profiles (Policies) (CloudAPI)
   ansible.builtin.uri:
     url: "{{ vcd.host }}/cloudapi/1.0.0/pvdcStoragePolicies"
     method: GET
@@ -154,10 +148,7 @@
   delegate_to: localhost
   connection: local
 
-# ===========================================================
-# BÚSQUEDA Y CÁLCULO DE COMPUTE POLICY (CORRECCIÓN DE TIPO)
-# ===========================================================
-- name: Obtener Compute Policy por nombre
+- name: Obtener Compute Policy por nombre (CloudAPI)
   ansible.builtin.uri:
     url: "{{ vcd.host }}/cloudapi/2.0.0/vdcComputePolicies?filter=name=={{ locationPrefix }}*"
     method: GET
@@ -172,8 +163,6 @@
 
 - name: Buscar Placement Policy asociada al PVDC y seleccionarla
   ansible.builtin.set_fact:
-    # CORRECCIÓN: Usamos compute_policy_check.json['values'] en lugar de .values
-    # para forzar la interpretación como una clave de diccionario y evitar el error 'builtin_function_or_method'.
     compute_match: "{{ compute_policy_check.json['values'] | selectattr('isSizingOnly', 'equalto', false) | selectattr('pvdcId', 'equalto', provider_match.id) | list | first | default({}) }}"
   when: compute_policy_check.json['values'] is defined and (compute_policy_check.json['values'] | length > 0)
   delegate_to: localhost
@@ -186,13 +175,9 @@
   delegate_to: localhost
   connection: local
 
-# ===========================================================
-# MOSTRAR RESULTADOS DE COMPONENTES DETECTADOS (ROBUSTO)
-# ===========================================================
 - name: Mostrar componentes detectados
   ansible.builtin.debug:
     msg:
-      # Uso de | default para evitar fallas si una variable *_match es {}
       - "✅ Provider VDC: {{ provider_match.name | default('No definido') }} ({{ provider_match.id | default('No definido') }})"
       - "✅ Network Pool: {{ network_match.name | default('No definido') }} ({{ network_match.id | default('No definido') }})"
       - "✅ Storage Profile: {{ storage_match.name | default('No definido') }} ({{ storage_match.id | default('No definido') }})"
@@ -201,7 +186,7 @@
   connection: local
 
 # ===========================================================
-# VALIDAR EXISTENCIA DEL ORG VDC
+# 3. LÓGICA DE CREACIÓN Y PRE-EJECUCIÓN
 # ===========================================================
 - name: Verificar si el Org VDC ya existe por nombre
   ansible.builtin.uri:
@@ -222,10 +207,7 @@
   delegate_to: localhost
   connection: local
 
-# ===========================================================
-# CALCULAR MODELO DE ASIGNACIÓN SEGÚN "TRIAL"
-# ===========================================================
-- name: Determinar modelo de asignación
+- name: Determinar modelo de asignación (basado en vcd.trial)
   ansible.builtin.set_fact:
     allocation_model: >-
       {% if vcd.trial | bool %}
@@ -243,36 +225,29 @@
   connection: local
 
 # ===========================================================
-# MOSTRAR VARIABLES DE ENTRADA ANTES DE PowerCLI (ROBUSTO)
+# 4. EJECUCIÓN PRINCIPAL (PowerCLI)
 # ===========================================================
-- name: Mostrar variables antes de ejecutar PowerCLI
-  ansible.builtin.debug:
-    msg:
-      - "📡 Servidor VCD: {{ vcd.host }}"
-      - "👤 Usuario: {{ vcd.user }}"
-      - "🏢 Organización: {{ vcd.orgFullName }}"
-      - "🏗️  Org VDC: {{ vcd.orgVdcName }}"
-      # Uso de | default para mostrar un mensaje claro si la variable falló la validación
-      - "🌍 Provider VDC Name: {{ provider_match.name | default('No definido') }}"
-      - "💾 Storage Policy Name: {{ storage_match.name | default('No definido') }}"
-      - "🌐 Network Pool Name: {{ network_match.name | default('No definido') }}"
-      - "🧠 CPU Allocation: {{ vcd.cpuQuota }}"
-      - "💽 Memory Allocation: {{ vcd.memoryQuota }}"
-      - "📦 Storage Allocation: {{ vcd.storageQuota }}"
-      - "📝 Descripción: Organización {{ vcd.orgFullName }} - creado por AWX"
-      - "AllocationModel {{allocation_model}}"
-      - "Compute Policy Name (CpName): {{ compute_match.name | default('No definido') }}"
-  delegate_to: localhost
-  connection: local
-
-# ===========================================================
-# 4️⃣ Ejecutar script PowerCLI remoto con log (AÑADIDO | default('') para robustez)
-# ===========================================================
-- name: Ejecutar PowerCLI en Windows
+- name:
+    Ejecutar PowerCLI en Windows (Crea el Org VDC)
+    # Nota: Asegúrate de que el script 'orgvcd.ps1' tenga la línea 'Write-Host "VDC_ID_CREATED:$($newVdc.Id)"'
+    # para que la siguiente tarea pueda extraer el ID.
   ansible.builtin.win_shell: >
-    powershell.exe -ExecutionPolicy Bypass -File "D:\Users\Jeferson Diaz\Documents\g6\Ansible\orgvcd.ps1" -AllocationModel "{{allocation_model}}" -Server "{{ vcd.host }}" -Username "{{ vcd.user }}" -Password "{{ vcd.password }}" -OrgName "{{ vcd.orgFullName }}" -VdcName "{{ vcd.orgVdcName }}" -ProvName "{{ provider_match.name | default('') }}" -CpName "{{ compute_match.name | default('') }}" -SpName "{{ storage_match.name | default('') }}" -NpName "{{ network_match.name | default('') }}" -CpuAllocation {{ vcd.cpuQuota }} -MemoryAllocation {{ vcd.memoryQuota }} -StorageAllocation {{ vcd.storageQuota }} -Description "Organización {{ vcd.orgFullName }} - creado por AWX"
+    powershell.exe -ExecutionPolicy Bypass -File "D:\Users\Jeferson Diaz\Documents\g6\Ansible\orgvcd.ps1"
+    -AllocationModel "{{allocation_model}}"
+    -Server "{{ vcd.host }}"
+    -Username "{{ vcd.user }}"
+    -Password "{{ vcd.password }}"
+    -OrgName "{{ vcd.orgFullName }}"
+    -VdcName "{{ vcd.orgVdcName }}"
+    -ProvName "{{ provider_match.name | default('') }}"
+    -CpName "{{ compute_match.name | default('') }}"
+    -SpName "{{ storage_match.name | default('') }}"
+    -NpName "{{ network_match.name | default('') }}"
+    -CpuAllocation {{ vcd.cpuQuota }}
+    -MemoryAllocation {{ vcd.memoryQuota }}
+    -StorageAllocation {{ vcd.storageQuota }}
+    -Description "Organización {{ vcd.orgFullName }} - creado por AWX"
   vars:
-    hostvcd: "{{vcd.host}}"
     ansible_connection: winrm
     ansible_host: "100.66.2.151"
     ansible_port: 5985
@@ -283,7 +258,52 @@
   register: script_result
 
 # ===========================================================
-# MOSTRAR RESULTADO DE EJECUCIÓN
+# 5. APLICAR METADATOS DE "TRIAL MODE" (CloudAPI POST)
+# ===========================================================
+- name: Extraer ID del Org VDC recién creado
+  ansible.builtin.set_fact:
+    # Usar regex para buscar la línea "VDC_ID_CREATED:urn:vcd:vdc:..."
+    created_vdc_id: "{{ script_result.stdout | regex_search('VDC_ID_CREATED:(urn:vcd:vdc:[^\\n]+)', '\\1') | first }}"
+  when: not vdc_exists # Solo si el VDC fue creado
+  delegate_to: localhost
+  connection: local
+
+- name: Construir Payload JSON para actualizar Metadatos
+  ansible.builtin.set_fact:
+    metadata_payload:
+      key: "isTrialMode" # Usar una clave consistente con la VRO Action original
+      typedValue:
+        _type: "MetadataBooleanValue"
+        value: "{{ vcd.trial | bool }}"
+  when: not vdc_exists and created_vdc_id is defined and created_vdc_id != ''
+  delegate_to: localhost
+  connection: local
+
+- name: Aplicar Metadato "isTrialMode" al Org VDC (CloudAPI POST)
+  ansible.builtin.uri:
+    url: "{{ vcd.host }}/cloudapi/1.0.0/vdcs/{{ created_vdc_id }}/metadata"
+    method: POST
+    headers:
+      Accept: "application/json;version={{ vcd.api_version }}"
+      Authorization: "Bearer {{ vcd.access_token }}"
+      Content-Type: "application/json"
+    body: "{{ metadata_payload | to_json }}"
+    body_format: json
+    status_code: 202 # Tarea asíncrona (202 Accepted)
+    validate_certs: false
+  when: not vdc_exists and created_vdc_id is defined and created_vdc_id != ''
+  register: metadata_task
+  delegate_to: localhost
+  connection: local
+
+- name: Mostrar mensaje de metadato aplicado
+  ansible.builtin.debug:
+    msg: "✅ Metadato 'isTrialMode' ({{ vcd.trial | bool }}) aplicado al OrgVDC."
+  when: metadata_task is defined and metadata_task.status == 202
+  delegate_to: localhost
+  connection: local
+# ===========================================================
+# 6. MOSTRAR RESULTADO FINAL
 # ===========================================================
 - name: Mostrar resultado del script PowerCLI
   ansible.builtin.debug:
