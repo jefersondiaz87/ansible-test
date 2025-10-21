@@ -74,7 +74,7 @@
     Write-Host "AccessToken: {{vcd.access_token}}"
     Write-Host "externalNetworkName: {{externalNetworkName}}"
     Write-Host "RoutedNetworkName: {{RoutedNetworkName}}"
-    powershell.exe -ExecutionPolicy Bypass -File "D:\Users\Jeferson Diaz\Documents\g6\Ansible\networkedge.ps1" `
+    pwsh.exe -ExecutionPolicy Bypass -File "D:\Users\Jeferson Diaz\Documents\g6\Ansible\networkedge.ps1" `
       -Server "{{ vcd.host }}" `
       -Username "{{ vcd.user }}" `
       -Password "{{ vcd.password }}" `
