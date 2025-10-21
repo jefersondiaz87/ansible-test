@@ -185,7 +185,7 @@
           | first
         )
       %}
-      {{ {'name': first_match.name, 'id': first_match.id} if first_match else {} }}
+      {{{'name': first_match.name, 'id': first_match.id} if first_match else {}}}
   when: compute_policy_check.json['values'] is defined and (compute_policy_check.json['values'] | length > 0)
   delegate_to: localhost
   connection: local
