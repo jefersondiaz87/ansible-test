@@ -176,7 +176,6 @@
       {%
         set c = (
           compute_policy_check.json['values']
-          # CORRECCIÓN: Usar 'isSizingOnly' y buscar 'false' para identificar Placement Policy
           | selectattr('isSizingOnly', 'equalto', false) 
           | selectattr('name', 'search', '^' ~ locationPrefix)
           | list
