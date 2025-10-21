@@ -238,7 +238,7 @@
     -MemoryAllocation {{ vcd.memoryQuota }}
     -StorageAllocation {{ vcd.storageQuota }}
     -Description "Organización {{ vcd.orgFullName }} - creado por AWX"
-    -IsTrialMode "{{ vcd.trial | bool }}" # <--- NUEVO PARÁMETRO MANDATORIO
+    -IsTrialMode "{{ vcd.trial | bool | ternary('$True', '$False') }}" # <--- CORRECCIÓN A $True/$False
   vars:
     # Estas vars de conexión son necesarias aquí si el rol no las define globalmente.
     ansible_connection: winrm
