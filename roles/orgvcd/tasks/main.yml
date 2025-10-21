@@ -254,6 +254,19 @@
   connection: local
 
 # ===========================================================
+# LIMPIAR VARIABLES ANTES DE PASAR A PowerCLI
+# ===========================================================
+- name: Limpiar nombres de políticas y componentes para PowerCLI
+  ansible.builtin.set_fact:
+    cp_name_clean: "{{ compute_match.name | trim | default('') }}"
+    sp_name_clean: "{{ storage_match.name | trim | default('') }}"
+    np_name_clean: "{{ network_match.name | trim | default('') }}"
+    prov_name_clean: "{{ provider_match.name | trim | default('') }}"
+  delegate_to: localhost
+  connection: local
+
+
+# ===========================================================
 # MOSTRAR VARIABLES DE ENTRADA ANTES DE PowerCLI (ROBUSTO)
 # ===========================================================
 - name: Mostrar variables antes de ejecutar PowerCLI
@@ -272,7 +285,7 @@
       - "📦 Storage Allocation: {{ vcd.storageQuota }}"
       - "📝 Descripción: Organización {{ vcd.orgFullName }} - creado por AWX"
       - "AllocationModel {{allocation_model}}"
-      - "Compute Policy Name (CpName): {{ compute_match.name | default('No definido') }}"
+      - "Compute Policy Name (CpName): {{ cp_name_clean }}"
   delegate_to: localhost
   connection: local
 
@@ -281,7 +294,7 @@
 # ===========================================================
 - name: Ejecutar PowerCLI en Windows
   ansible.builtin.win_shell: >
-    powershell.exe -ExecutionPolicy Bypass -File "D:\Users\Jeferson Diaz\Documents\g6\Ansible\orgvcd.ps1" -AllocationModel "{{allocation_model}}" -Server "{{ vcd.host }}" -Username "{{ vcd.user }}" -Password "{{ vcd.password }}" -OrgName "{{ vcd.orgFullName }}" -VdcName "{{ vcd.orgVdcName }}" -ProvName "{{ provider_match.name | default('') }}" -CpName "{{ compute_match.name | default('') }}" -SpName "{{ storage_match.name | default('') }}" -NpName "{{ network_match.name | default('') }}" -CpuAllocation {{ vcd.cpuQuota }} -MemoryAllocation {{ vcd.memoryQuota }} -StorageAllocation {{ vcd.storageQuota }} -Description "Organización {{ vcd.orgFullName }} - creado por AWX"
+    powershell.exe -ExecutionPolicy Bypass -File "D:\Users\Jeferson Diaz\Documents\g6\Ansible\orgvcd.ps1" -AllocationModel "{{allocation_model}}" -Server "{{ vcd.host }}" -Username "{{ vcd.user }}" -Password "{{ vcd.password }}" -OrgName "{{ vcd.orgFullName }}" -VdcName "{{ vcd.orgVdcName }}" -ProvName "{{ provider_match.name | default('') }}" -CpName "{{ cp_name_clean }}" -SpName "{{ storage_match.name | default('') }}" -NpName "{{ network_match.name | default('') }}" -CpuAllocation {{ vcd.cpuQuota }} -MemoryAllocation {{ vcd.memoryQuota }} -StorageAllocation {{ vcd.storageQuota }} -Description "Organización {{ vcd.orgFullName }} - creado por AWX"
   vars:
     hostvcd: "{{vcd.host}}"
     ansible_connection: winrm
