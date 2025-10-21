@@ -1,6 +1,8 @@
 ---
-# Este archivo solo debe contener la lista de tareas (tasks)
-
+# ===========================================================
+# 1. RESOLVER COMPONENTES NECESARIOS (Provider VDC, Network, Storage, Compute)
+# ... (Tareas de LECTURA/VALIDACIÓN - No necesitan rollback) ...
+# ===========================================================
 - name: Extraer prefijo del Org VDC para búsqueda regional
   ansible.builtin.set_fact:
     locationPrefix: "{{ vcd.orgVdcName.split('-')[0] }}"
@@ -8,6 +10,7 @@
   connection: local
 
 - name: Obtener ID de la organización (CloudAPI)
+  # ... (Tareas de obtención y validación del ID de Org) ...
   ansible.builtin.uri:
     url: "{{ vcd.host }}/cloudapi/1.0.0/orgs?filter=name=={{ vcd.orgFullName }}"
     method: GET
@@ -33,10 +36,7 @@
   delegate_to: localhost
   connection: local
 
-# ===========================================================
-# 2. RESOLVER COMPONENTES NECESARIOS (Provider VDC, Network, Storage, Compute)
-# ===========================================================
-
+# ... (Tareas de resolución de Provider VDC, Network Pool, Storage Policy, Compute Policy) ...
 - name: Obtener todos los Provider VDCs (CloudAPI)
   ansible.builtin.uri:
     url: "{{ vcd.host }}/cloudapi/1.0.0/providerVdcs"
@@ -218,58 +218,90 @@
   delegate_to: localhost
   connection: local
 
-# ===========================================================
-# 4. EJECUCIÓN PRINCIPAL (PowerCLI)
-# ===========================================================
-- name: Ejecutar PowerCLI en Windows (Crea el Org VDC y aplica Metadatos)
-  # CORRECCIÓN DE ERROR: Se eliminó la asignación de variable temporal en PowerShell.
-  # El literal booleano '$True' o '$False' es ahora interpolado directamente en el parámetro
-  # '-IsTrialMode' del script, evitando el error de sintaxis del '='.
-  ansible.builtin.win_shell: >
-    & 'D:\Users\Jeferson Diaz\Documents\g6\Ansible\orgvcd.ps1' -AllocationModel '{{allocation_model | trim}}' -Server '{{ vcd.host }}' -Username '{{ vcd.user }}' -Password '{{ vcd.password }}' -OrgName '{{ vcd.orgFullName }}' -VdcName '{{ vcd.orgVdcName }}' -ProvName '{{ provider_match.name | default('') }}' -CpName '{{ compute_match.name | default('') }}' -SpName '{{ storage_match.name | default('') }}' -NpName '{{ network_match.name | default('') }}' -CpuAllocation {{ vcd.cpuQuota | trim }} -MemoryAllocation {{ vcd.memoryQuota | trim }} -StorageAllocation {{ vcd.storageQuota | trim }} -Description 'Organización {{ vcd.orgFullName }} - creado por AWX' -IsTrialMode {{ vcd.trial | bool | ternary('$True', '$False') }}
-  vars:
-    # Estas vars de conexión son necesarias aquí si el rol no las define globalmente.
-    ansible_connection: winrm
-    ansible_host: "100.66.2.151"
-    ansible_port: 5985
-    ansible_user: "jeferson diaz"
-    ansible_password: "Zero.eg9olj12*"
-    ansible_winrm_transport: basic
-    ansible_winrm_server_cert_validation: ignore
-  register: script_result
+# -----------------------------------------------------------
+# BLOQUE 1: PROCESO PRINCIPAL DE APROVISIONAMIENTO (Org VDC)
+# (Corresponde a Stage 1: Create Organization)
+# -----------------------------------------------------------
+- name: Proceso principal de aprovisionamiento de VDC con Rollback
+  ansible.builtin.block:
+    # ===========================================================
+    # 4. EJECUCIÓN PRINCIPAL (PowerCLI - CREACIÓN Y METADATOS)
+    # ===========================================================
+    - name: Ejecutar PowerCLI en Windows (Crea el Org VDC y aplica Metadatos)
+      ansible.builtin.win_shell: >
+        & 'D:\Users\Jeferson Diaz\Documents\g6\Ansible\orgvcd.ps1' -AllocationModel '{{allocation_model | trim}}' -Server '{{ vcd.host }}' -Username '{{ vcd.user }}' -Password '{{ vcd.password }}' -OrgName '{{ vcd.orgFullName }}' -VdcName '{{ vcd.orgVdcName }}' -ProvName '{{ provider_match.name | default('') }}' -CpName '{{ compute_match.name | default('') }}' -SpName '{{ storage_match.name | default('') }}' -NpName '{{ network_match.name | default('') }}' -CpuAllocation {{ vcd.cpuQuota | trim }} -MemoryAllocation {{ vcd.memoryQuota | trim }} -StorageAllocation {{ vcd.storageQuota | trim }} -Description 'Organización {{ vcd.orgFullName }} - creado por AWX' -IsTrialMode {{ vcd.trial | bool | ternary('$True', '$False') }}
+      vars:
+        ansible_connection: winrm
+        ansible_host: "100.66.2.151"
+        ansible_port: 5985
+        ansible_user: "jeferson diaz"
+        ansible_password: "Zero.eg9olj12*"
+        ansible_winrm_transport: basic
+        ansible_winrm_server_cert_validation: ignore
+      register: script_result
 
-# ===========================================================
-# 5. EXTRACCIÓN DEL ID DEL VDC (Metadatos aplicados en PowerCLI)
-# ===========================================================
-- name: Extraer ID del Org VDC recién creado o existente
-  ansible.builtin.set_fact:
-    # Esta lógica es robusta. Debería funcionar una vez que la tarea 4 tenga una salida estándar válida.
-    created_vdc_id: >-
-      {{ ((script_result.stdout_lines | select('match', '^VDC_ID_CREATED:') | list) | first) | default('') | split(':') | last | default('') | trim }}
-  delegate_to: localhost
-  connection: local
+    # ===========================================================
+    # 5. EXTRACCIÓN Y VALIDACIÓN DEL ID
+    # ===========================================================
+    - name: Extraer ID del Org VDC recién creado o existente
+      ansible.builtin.set_fact:
+        created_vdc_id: >-
+          {{ ((script_result.stdout_lines | select('match', '^VDC_ID_CREATED:') | list) | first) | default('') | split(':') | last | default('') | trim }}
+      delegate_to: localhost
+      connection: local
 
-- name: Validar que se encontró el VDC ID
-  ansible.builtin.fail:
-    msg: "❌ ERROR: No se pudo obtener el ID del VDC (VDC_ID_CREATED) de la salida de PowerCLI. Asegúrese de que el script PowerCLI devuelve el ID correctamente."
-  when: created_vdc_id == ''
-  delegate_to: localhost
-  connection: local
+    - name: Validar que se encontró el VDC ID (Punto de fallo crítico)
+      ansible.builtin.fail:
+        msg: "❌ ERROR: No se pudo obtener el ID del VDC (VDC_ID_CREATED) de la salida de PowerCLI. Activando el Rollback."
+      when: created_vdc_id == ''
+      delegate_to: localhost
+      connection: local
 
-- name: Mostrar mensaje de confirmación de Metadatos
-  ansible.builtin.debug:
-    msg: "✅ Metadato 'isTrialMode' ({{ vcd.trial | bool }}) aplicado exitosamente por el script PowerCLI."
-  delegate_to: localhost
-  connection: local
+    # ===========================================================
+    # 6. MOSTRAR RESULTADO FINAL (Éxito)
+    # ===========================================================
+    - name: Mostrar mensaje de confirmación de Metadatos
+      ansible.builtin.debug:
+        msg: "✅ Metadato 'isTrialMode' ({{ vcd.trial | bool }}) aplicado exitosamente por el script PowerCLI."
+      delegate_to: localhost
+      connection: local
 
-# ===========================================================
-# 6. MOSTRAR RESULTADO FINAL
-# ===========================================================
-- name: Mostrar resultado del script PowerCLI
-  ansible.builtin.debug:
-    msg:
-      - "✅ Ejecución completada en PowerCLI"
-      - "📜 Salida:"
-      - "{{ script_result.stdout_lines }}"
-  delegate_to: localhost
-  connection: local
+    - name: Mostrar resultado del script PowerCLI (VDC)
+      ansible.builtin.debug:
+        msg:
+          - "✅ Ejecución VDC completada en PowerCLI"
+          - "📜 Salida:"
+          - "{{ script_result.stdout_lines }}"
+      delegate_to: localhost
+      connection: local
+
+  # -----------------------------------------------------------
+  # SECCIÓN DE RESCATE (ROLLBACK VDC)
+  # -----------------------------------------------------------
+  rescue:
+    - name: ⚠️ INICIANDO ROLLBACK VDC ⚠️ - Eliminando VDC parcialmente creado
+      ansible.builtin.debug:
+        msg: "Rollback activado debido a un fallo en el bloque de aprovisionamiento del VDC."
+      delegate_to: localhost
+      connection: local
+
+    - name: Eliminar Org VDC usando el ID extraído (SI EXISTE)
+      ansible.builtin.win_shell: >
+        & 'D:\Users\Jeferson Diaz\Documents\g6\Ansible\delete_orgvdc.ps1' -VdcId '{{ created_vdc_id }}' -Server '{{ vcd.host }}' -Username '{{ vcd.user }}' -Password '{{ vcd.password }}'
+      vars:
+        ansible_connection: winrm
+        ansible_host: "100.66.2.151"
+        ansible_port: 5985
+        ansible_user: "jeferson diaz"
+        ansible_password: "Zero.eg9olj12*"
+        ansible_winrm_transport: basic
+        ansible_winrm_server_cert_validation: ignore
+      # Solo intenta eliminar si el ID fue extraído
+      when: created_vdc_id is defined and created_vdc_id != ''
+      ignore_errors: true
+
+    - name: Notificar Fallo Crítico después del Rollback VDC
+      ansible.builtin.fail:
+        msg: "❌ PROVISIÓN VDC FALLIDA. Se intentó la limpieza/Rollback del VDC con ID: {{ created_vdc_id | default('N/A') }}"
+      delegate_to: localhost
+      connection: local

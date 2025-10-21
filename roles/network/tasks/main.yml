@@ -38,6 +38,10 @@
   ansible.builtin.set_fact:
     edge_exists: "{{ ('values' in edge_check.json) and (edge_check.json['values'] | length > 0) }}"
 
+- name: Skip Edge Creation si ya existe
+  ansible.builtin.meta: end_host
+  when: edge_exists
+
 - name: Mostrar estado del Edge Gateway
   ansible.builtin.debug:
     msg:
@@ -131,3 +135,37 @@
   ansible.builtin.fail:
     msg: "❌ No se pudo extraer EDGE_ID desde la salida del script PowerCLI."
   when: edge_id == ''
+
+# -----------------------------------------------------------
+  # SECCIÓN DE RESCATE (ROLLBACK EDGE)
+  # -----------------------------------------------------------
+  rescue:
+    - name: ⚠️ INICIANDO ROLLBACK EDGE ⚠️ - Eliminando Edge/Network parcial
+      ansible.builtin.debug:
+        msg: "Rollback activado debido a un fallo en la creación del Edge Gateway o Red. El VDC (Bloque 1) permanecerá."
+      delegate_to: localhost
+      connection: local
+      
+    # Esta tarea corresponde a Network_1._.DeleteOrgVdcEdge en su esquema vRO.
+    # Necesitará crear el script 'delete_edge.ps1' que tome el VDC Name y Edge Name.
+    - name: Eliminar Edge Gateway usando PowerCLI (SI EXISTE)
+      ansible.builtin.win_shell: >
+        & 'D:\Users\Jeferson Diaz\Documents\g6\Ansible\delete_edge.ps1' -OrgVdcName '{{ vcd.orgVdcName }}' -EdgeName '{{ edgeGatewayName }}' -Server '{{ vcd.host }}' -Username '{{ vcd.user }}' -Password '{{ vcd.password }}'
+      vars:
+        ansible_connection: winrm
+        ansible_host: "100.66.2.151"
+        ansible_port: 5985
+        ansible_user: "jeferson diaz"
+        ansible_password: "Zero.eg9olj12*"
+        ansible_winrm_transport: basic
+        ansible_winrm_server_cert_validation: ignore
+      # Solo intenta eliminar si el Edge ID fue extraído (indicando que la creación SÍ inició)
+      when: edge_id is defined and edge_id != ''
+      ignore_errors: true
+      
+    - name: Notificar Fallo Crítico después del Rollback Edge
+      ansible.builtin.fail:
+        msg: "❌ PROVISIÓN EDGE FALLIDA. Se intentó la limpieza/Rollback del Edge Gateway."
+      delegate_to: localhost
+      connection: local
+
