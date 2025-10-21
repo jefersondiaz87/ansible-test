@@ -24,7 +24,6 @@
 # ===========================================================
 - name: 2.1 Proceso transaccional para Edge Gateway y Redes
   block: # INICIO del bloque transaccional
-
     # -----------------------------------------------------------
     # TAREA 2.2: VALIDAR SI EL EDGE YA EXISTE (Lectura - No necesita Rollback)
     # -----------------------------------------------------------
@@ -49,7 +48,7 @@
       ansible.builtin.debug:
         msg: "🔍 Estado: {{ 'YA EXISTE ✅' if edge_exists else 'NO EXISTE 🚀 Se procederá a crear' }}"
       delegate_to: localhost
-      
+
     - name: 2.5 (Opcional) Saltar la creación si Edge ya existe
       ansible.builtin.meta: end_host
       when: edge_exists
@@ -107,7 +106,7 @@
         msg: "❌ No se pudo extraer EDGE_ID desde la salida del script PowerCLI. Activando Rollback de Edge."
       when: edge_id == ''
       delegate_to: localhost
-      
+
     - name: 2.10 Separar UPLINK_INFO en variables individuales
       ansible.builtin.set_fact:
         uplink_name: "{{ uplink_info_raw.split(';')[0] }}"
@@ -116,7 +115,7 @@
         end_ip: "{{ uplink_info_raw.split(';')[3] }}"
       when: uplink_info_raw != ''
       delegate_to: localhost
-      
+
     - name: 2.11 Mostrar variables de red extraídas
       ansible.builtin.debug:
         msg:
@@ -133,12 +132,12 @@
       ansible.builtin.debug:
         msg: "Configurando reglas NAT básicas en Edge '{{ edgeGatewayName }}' (Tarea Dummy)"
       delegate_to: localhost
-      
+
     - name: 2.13 Configurar reglas de Firewall por defecto (Ejemplo - requiere script o módulo)
       ansible.builtin.debug:
         msg: "Configurando reglas de Firewall por defecto en Edge '{{ edgeGatewayName }}' (Tarea Dummy)"
       delegate_to: localhost
-      
+
   # -----------------------------------------------------------
   # SECCIÓN DE RESCATE (ROLLBACK EDGE)
   # Se ejecuta si cualquier tarea en el 'block' falla.
@@ -149,7 +148,7 @@
         msg: "Rollback activado debido a un fallo en la creación de Edge Gateway o configuración de servicios."
       delegate_to: localhost
       connection: local
-      
+
     - name: 3.1 Eliminar Edge Gateway usando PowerCLI (SI LA CREACIÓN SE INICIÓ)
       ansible.builtin.win_shell: >
         & 'D:\Users\Jeferson Diaz\Documents\g6\Ansible\delete_edge.ps1' -OrgVdcName '{{ vcd.orgVdcName }}' -EdgeName '{{ edgeGatewayName }}' -Server '{{ vcd.host }}' -Username '{{ vcd.user }}' -Password '{{ vcd.password }}'
@@ -165,7 +164,7 @@
       when: edge_id is defined and edge_id != ''
       ignore_errors: true
       delegate_to: win-builder
-      
+
     - name: 3.2 Notificar Fallo Crítico después del Rollback Edge
       ansible.builtin.fail:
         msg: "❌ PROVISIÓN NETWORKING FALLIDA. Se intentó la limpieza/Rollback del Edge Gateway: {{ edgeGatewayName }}"
