@@ -170,12 +170,12 @@
   delegate_to: localhost
   connection: local
 
-- name: Buscar Placement Policy asociada al PVDC y seleccionarla (CORREGIDO - Garantiza Dict y Tipo)
+- name: Buscar Placement Policy asociada al PVDC y seleccionarla (CORREGIDO - V4: Asegura tipo Dict)
   ansible.builtin.set_fact:
-    # Fuerza la conversión a JSON y luego de vuelta a un objeto, resolviendo problemas de serialización de tipo string.
-    compute_match: "{{ match_result | to_json | from_json }}"
+    # Usamos trim para eliminar cualquier espacio/newline no deseado y from_json para forzar el tipo diccionario.
+    compute_match: "{{ match_result | trim | from_json }}"
   vars:
-    # Usamos un var temporal para calcular el resultado (dict o {})
+    # Utilizamos >- para evitar un salto de línea al final y to_json para garantizar una entrada limpia a from_json.
     match_result: >-
       {% set first_match = (
           compute_policy_check.json['values']
@@ -185,7 +185,11 @@
           | first
         )
       %}
-      {{{'name': first_match.name, 'id': first_match.id} if first_match | length > 0 else {}}}
+      {% if first_match %}
+      {{ {'name': first_match.name, 'id': first_match.id} | to_json }}
+      {% else %}
+      {{ {} | to_json }}
+      {% endif %}
   when: compute_policy_check.json['values'] is defined and (compute_policy_check.json['values'] | length > 0)
   delegate_to: localhost
   connection: local
@@ -281,7 +285,7 @@
       - "📦 Storage Allocation: {{ vcd.storageQuota }}"
       - "📝 Descripción: Organización {{ vcd.orgFullName }} - creado por AWX"
       - "AllocationModel {{allocation_model}}"
-      - "Compute Policy Name (CpName): {{ cp_name_clean }}"
+      - "Compute Policy Name (CpName): {{ compute_match.name | default('No definido') }}"
   delegate_to: localhost
   connection: local
 
