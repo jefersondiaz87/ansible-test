@@ -1,13 +1,6 @@
 ---
-- name: Proceso Completo de Creación de Org VDC y Aplicación de Metadatos
-  # Nota: El host debe ser la máquina Windows donde se ejecutará PowerCLI.
-  # Las tareas que usan 'delegate_to: localhost' se ejecutan en el Execution Node de AWX
-  hosts: vcd_winrm_node
-  gather_facts: false
+# Este archivo solo debe contener la lista de tareas (tasks)
 
-# ===========================================================
-# 1. EXTRACCIÓN Y VALIDACIÓN PRELIMINAR (CloudAPI)
-# ===========================================================
 - name: Extraer prefijo del Org VDC para búsqueda regional
   ansible.builtin.set_fact:
     locationPrefix: "{{ vcd.orgVdcName.split('-')[0] }}"
@@ -43,6 +36,7 @@
 # ===========================================================
 # 2. RESOLVER COMPONENTES NECESARIOS (Provider VDC, Network, Storage, Compute)
 # ===========================================================
+
 - name: Obtener todos los Provider VDCs (CloudAPI)
   ansible.builtin.uri:
     url: "{{ vcd.host }}/cloudapi/1.0.0/providerVdcs"
@@ -95,9 +89,9 @@
     network_match: >-
       {%
         set n = (
-        network_check.json['values']
-        | selectattr('name', 'search', '^' ~ locationPrefix)
-        | list
+          network_check.json['values']
+          | selectattr('name', 'search', '^' ~ locationPrefix)
+          | list
         )
       %}{{ {'name': n[0].name, 'id': n[0].id} if n | length == 1 else {} }}
   when: network_check.json['values'] | length > 0
@@ -227,10 +221,7 @@
 # ===========================================================
 # 4. EJECUCIÓN PRINCIPAL (PowerCLI)
 # ===========================================================
-- name:
-    Ejecutar PowerCLI en Windows (Crea el Org VDC)
-    # Nota: Asegúrate de que el script 'orgvcd.ps1' tenga la línea 'Write-Host "VDC_ID_CREATED:$($newVdc.Id)"'
-    # para que la siguiente tarea pueda extraer el ID.
+- name: Ejecutar PowerCLI en Windows (Crea el Org VDC)
   ansible.builtin.win_shell: >
     powershell.exe -ExecutionPolicy Bypass -File "D:\Users\Jeferson Diaz\Documents\g6\Ansible\orgvcd.ps1"
     -AllocationModel "{{allocation_model}}"
@@ -248,6 +239,7 @@
     -StorageAllocation {{ vcd.storageQuota }}
     -Description "Organización {{ vcd.orgFullName }} - creado por AWX"
   vars:
+    # Estas vars de conexión son necesarias aquí si el rol no las define globalmente.
     ansible_connection: winrm
     ansible_host: "100.66.2.151"
     ansible_port: 5985
@@ -260,11 +252,10 @@
 # ===========================================================
 # 5. APLICAR METADATOS DE "TRIAL MODE" (CloudAPI POST)
 # ===========================================================
-- name: Extraer ID del Org VDC recién creado
+- name: Extraer ID del Org VDC recién creado o existente
   ansible.builtin.set_fact:
     # Usar regex para buscar la línea "VDC_ID_CREATED:urn:vcd:vdc:..."
     created_vdc_id: "{{ script_result.stdout | regex_search('VDC_ID_CREATED:(urn:vcd:vdc:[^\\n]+)', '\\1') | first }}"
-  when: not vdc_exists # Solo si el VDC fue creado
   delegate_to: localhost
   connection: local
 
@@ -275,9 +266,7 @@
       typedValue:
         _type: "MetadataBooleanValue"
         value: "{{ vcd.trial | bool }}"
-  when: not vdc_exists and created_vdc_id is defined and created_vdc_id != ''
-  delegate_to: localhost
-  connection: local
+  when: created_vdc_id is defined and created_vdc_id != '' # Ejecutar siempre que haya ID
 
 - name: Aplicar Metadato "isTrialMode" al Org VDC (CloudAPI POST)
   ansible.builtin.uri:
@@ -291,7 +280,7 @@
     body_format: json
     status_code: 202 # Tarea asíncrona (202 Accepted)
     validate_certs: false
-  when: not vdc_exists and created_vdc_id is defined and created_vdc_id != ''
+  when: created_vdc_id is defined and created_vdc_id != ''
   register: metadata_task
   delegate_to: localhost
   connection: local
@@ -302,6 +291,7 @@
   when: metadata_task is defined and metadata_task.status == 202
   delegate_to: localhost
   connection: local
+
 # ===========================================================
 # 6. MOSTRAR RESULTADO FINAL
 # ===========================================================
@@ -311,3 +301,5 @@
       - "✅ Ejecución completada en PowerCLI"
       - "📜 Salida:"
       - "{{ script_result.stdout_lines }}"
+  delegate_to: localhost
+  connection: local
