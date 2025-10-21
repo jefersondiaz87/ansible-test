@@ -170,7 +170,7 @@
   delegate_to: localhost
   connection: local
 
-- name: Buscar Placement Policy asociada al PVDC y seleccionarla (CORREGIDO - V5: Simplificación de Tipo)
+- name: Buscar Placement Policy asociada al PVDC y seleccionarla Simplificación de Tipo
   ansible.builtin.set_fact:
     # Solución de una línea para evitar errores de YAML: Busca la política y, si no se encuentra, usa un diccionario vacío.
     compute_match: "{{ compute_policy_check.json.values | selectattr('isSizingOnly', 'equalto', false) | selectattr('pvdcId', 'equalto', provider_match.id) | list | first | default({}) }}"
