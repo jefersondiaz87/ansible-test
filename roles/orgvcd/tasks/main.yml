@@ -279,7 +279,7 @@
   connection: local
 
 # ===========================================================
-# 4️⃣ Ejecutar script PowerCLI remoto con log
+# 4️⃣ Ejecutar script PowerCLI remoto con log (CORREGIDO)
 # ===========================================================
 - name: Ejecutar PowerCLI en Windows
   ansible.builtin.win_shell: |
@@ -294,10 +294,10 @@
       -Password "{{ vcd.password }}" `
       -OrgName "{{ vcd.orgFullName }}" `
       -VdcName "{{ vcd.orgVdcName }}" `
-      -ProvName "{{ provider_match.name }}" `
-      -CpName "{{ compute_match.name }}" `
-      -SpName "{{ storage_match.name }}" `
-      -NpName "{{ network_match.name }}" `
+      -ProvName "{{ provider_match.name | default('') }}" `
+      -CpName "{{ compute_match.name | default('') }}" `
+      -SpName "{{ storage_match.name | default('') }}" `
+      -NpName "{{ network_match.name | default('') }}" `
       -CpuAllocation {{ vcd.cpuQuota }} `
       -MemoryAllocation {{ vcd.memoryQuota }} `
       -StorageAllocation {{ vcd.storageQuota }} `
