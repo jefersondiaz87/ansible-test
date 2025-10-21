@@ -239,9 +239,9 @@
       -CpName '{{ compute_match.name | default('') }}'
       -SpName '{{ storage_match.name | default('') }}'
       -NpName '{{ network_match.name | default('') }}'
-      -CpuAllocation {{ vcd.cpuQuota }}
-      -MemoryAllocation {{ vcd.memoryQuota }}
-      -StorageAllocation {{ vcd.storageQuota }}
+      -CpuAllocation {{ vcd.cpuQuota }}'
+      -MemoryAllocation {{ vcd.memoryQuota }}'
+      -StorageAllocation {{ vcd.storageQuota }}'
       -Description 'Organización {{ vcd.orgFullName }} - creado por AWX'
       -IsTrialMode $IsTrialModeValue
     }"
