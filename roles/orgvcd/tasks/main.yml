@@ -287,21 +287,7 @@
     Write-Host "Servidor: {{ vcd.host }}"
     Write-Host "Usuario: {{ vcd.user }}"
     Write-Host "OrgName: {{ vcd.orgFullName }}"
-    powershell.exe -ExecutionPolicy Bypass -File "D:\Users\Jeferson Diaz\Documents\g6\Ansible\orgvcd.ps1" `
-      -AllocationModel "{{allocation_model}}" `
-      -Server "{{ vcd.host }}" `
-      -Username "{{ vcd.user }}" `
-      -Password "{{ vcd.password }}" `
-      -OrgName "{{ vcd.orgFullName }}" `
-      -VdcName "{{ vcd.orgVdcName }}" `
-      -ProvName "{{ provider_match.name | default('') }}" `
-      -ComputePolicyName "{{ compute_match.name | default('') }}" ` # <-- Parámetro actualizado a nombre más descriptivo
-      -SpName "{{ storage_match.name | default('') }}" `
-      -NpName "{{ network_match.name | default('') }}" `
-      -CpuAllocation {{ vcd.cpuQuota }} `
-      -MemoryAllocation {{ vcd.memoryQuota }} `
-      -StorageAllocation {{ vcd.storageQuota }} `
-      -Description "Organización {{ vcd.orgFullName }} - creado por AWX"
+    powershell.exe -ExecutionPolicy Bypass -File "D:\Users\Jeferson Diaz\Documents\g6\Ansible\orgvcd.ps1" -AllocationModel "{{allocation_model}}" -Server "{{ vcd.host }}" -Username "{{ vcd.user }}" -Password "{{ vcd.password }}" -OrgName "{{ vcd.orgFullName }}" -VdcName "{{ vcd.orgVdcName }}" -ProvName "{{ provider_match.name | default('') }}" -CpName "{{ compute_match.name | default('') }}" -SpName "{{ storage_match.name | default('') }}" -NpName "{{ network_match.name | default('') }}" -CpuAllocation {{ vcd.cpuQuota }} -MemoryAllocation {{ vcd.memoryQuota }} -StorageAllocation {{ vcd.storageQuota }} -Description "Organización {{ vcd.orgFullName }} - creado por AWX"
 
   vars:
     hostvcd: "{{vcd.host}}"
