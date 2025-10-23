@@ -124,6 +124,33 @@
           - "Gateway IP: {{ gateway | default('N/A') }}"
       delegate_to: localhost
 
+      # -----------------------------------------------------------
+    # TAREA : CREACIÓN NAT
+    # -----------------------------------------------------------
+    - name: Ejecutar script PowerCLI para crear NAT
+      ansible.builtin.win_shell: |
+        Write-Host "=== Iniciando creación de Edge Gateway (PowerCLI 13.3) ==="
+        pwsh.exe -ExecutionPolicy Bypass -File "D:\Users\Jeferson Diaz\Documents\g6\Ansible\natnetwork.ps1" `
+          -Server "{{ vcd.host }}" `
+          -Username "{{ vcd.user }}" `
+          -Password "{{ vcd.password }}" `
+          -OrgVdcName "{{ vcd.orgVdcName }}" `
+          -EdgeName "{{ edgeGatewayName }}" `
+          -ExternalNetworkName "{{ externalNetworkName }}" `
+          -AccessToken "{{vcd.access_token}}" `
+          -RoutedNetworkName "{{RoutedNetworkName}}"
+      vars:
+        ansible_connection: winrm
+        ansible_host: "100.66.2.151"
+        ansible_port: 5985
+        ansible_user: "jeferson diaz"
+        ansible_password: "Zero.eg9olj12*"
+        ansible_winrm_transport: basic
+        ansible_winrm_server_cert_validation: ignore
+      register: edge_result
+      failed_when: edge_result.rc != 0 or ('"success":false' in edge_result.stdout if edge_result.stdout else false)
+      delegate_to: win-builder
+
     # -----------------------------------------------------------
     # TAREAS ADICIONALES DE RED (Configuración de NAT, Firewall)
     # Si estas fallan, se activará el rescue.
