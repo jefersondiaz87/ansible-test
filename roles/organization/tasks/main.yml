@@ -11,7 +11,18 @@
       name: "{{ vcd.orgFullName }}"
       displayName: "{{ vcd.orgFullName }}"
       isEnabled: true
-      description: "Organización creada automáticamente por Ansible"
+      description: "Organización {{ vcd.orgFullName }} creada automáticamente por Ansible "
+      settings:
+        vAppLeaseSettings:
+          storageLeaseSeconds: 0
+          deleteOnStorageLeaseExpiration: false
+          deploymentLeaseSeconds: 0
+          powerOffOnRuntimeLeaseExpiration: false
+        vAppTemplateLeaseSettings:
+          storageLeaseSeconds: 0
+          deleteOnStorageLeaseExpiration: false
+          deploymentLeaseSeconds: 0
+          powerOffOnRuntimeLeaseExpiration: false
     # Aceptamos 400 para poder analizar su contenido en failed_when
     status_code: [200, 201, 409, 400] 
     validate_certs: "{{ vcd.verify_ssl }}"
