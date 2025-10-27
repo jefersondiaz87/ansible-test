@@ -285,9 +285,28 @@
       delegate_to: localhost
       connection: local
 
+    - name: Verificar si el Org VDC ya existe por nombre
+      ansible.builtin.uri:
+        url: "{{ vcd.host }}/cloudapi/1.0.0/vdcs?filter=name=={{ vcd.orgVdcName }}"
+        method: GET
+        headers:
+          Accept: "application/json;version={{ vcd.api_version }}"
+          Authorization: "Bearer {{ vcd.access_token }}"
+        return_content: yes
+        validate_certs: false
+      register: vdc_check
+      delegate_to: localhost
+      connection: local
+
+    - name: Determinar si el Org VDC ya existe
+      ansible.builtin.set_fact:
+        vdc_exists: "{{ vdc_check.json['values'].id | length > 0 }}"
+      delegate_to: localhost
+      connection: local
+
     - name: Eliminar Org VDC usando el ID extraído (SI EXISTE)
       ansible.builtin.win_shell: >
-        & 'D:\Users\Jeferson Diaz\Documents\g6\Ansible\delete_orgvdc.ps1' -VdcId '{{ created_vdc_id }}' -Server '{{ vcd.host }}' -Username '{{ vcd.user }}' -Password '{{ vcd.password }}'
+        & 'D:\Users\Jeferson Diaz\Documents\g6\Ansible\delete_orgvdc.ps1' -VdcId '{{ vdc_exists }}' -Server '{{ vcd.host }}' -Username '{{ vcd.user }}' -Password '{{ vcd.password }}'
       vars:
         ansible_connection: winrm
         ansible_host: "100.66.2.151"
@@ -297,11 +316,11 @@
         ansible_winrm_transport: basic
         ansible_winrm_server_cert_validation: ignore
       # Solo intenta eliminar si el ID fue extraído
-      when: created_vdc_id is defined and created_vdc_id != ''
+      when: vdc_exists is defined and vdc_exists != ''
       ignore_errors: true
 
     - name: Notificar Fallo Crítico después del Rollback VDC
       ansible.builtin.fail:
-        msg: "❌ PROVISIÓN VDC FALLIDA. Se intentó la limpieza/Rollback del VDC con ID: {{ created_vdc_id | default('N/A') }}"
+        msg: "❌ PROVISIÓN VDC FALLIDA. Se intentó la limpieza/Rollback del VDC con ID: {{ vdc_exists | default('N/A') }}"
       delegate_to: localhost
       connection: local
