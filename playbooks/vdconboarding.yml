@@ -17,7 +17,7 @@
 
     # 📦 Datos dinámicos — enviados desde survey o extra_vars
     orgFullName: "{{ orgFullName }}"
-    Extra_orgVdcName: "{{ orgVdcName }}"
+    orgVdcName: "{{ orgVdcName }}"
     cpuQuota: "{{ cpuQuota }}"
     memoryQuota: "{{ memoryQuota }}"
     storageQuota: "{{ storageQuota }}"
