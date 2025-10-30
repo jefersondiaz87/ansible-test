@@ -120,7 +120,7 @@
 
     - name: 3.1 Eliminar Edge Gateway usando PowerCLI (SI LA CREACIÓN SE INICIÓ)
       ansible.builtin.win_shell: >
-        & 'D:\Users\Jeferson Diaz\Documents\g6\Ansible\delete_edge.ps1' -OrgVdcName '{{ vcd.orgVdcName }}' -EdgeName '{{ edge_id }}' -Server '{{ vcd.host }}' -Username '{{ vcd.user }}' -Password '{{ vcd.password }}'
+        & 'D:\Users\Jeferson Diaz\Documents\g6\Ansible\delete_edge.ps1' -AccesToken '{{ vcd.access_token }}' -EdgeName '{{ edgeGatewayName }}' -Server '{{ vcd.host }}' -Username '{{ vcd.user }}'
       vars:
         ansible_connection: winrm
         ansible_host: "100.66.2.151"
